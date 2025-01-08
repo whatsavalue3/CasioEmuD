@@ -1,0 +1,8 @@
+name "casioemud"
+description "Casiocalc emulator in D"
+authors "wav3"
+copyright "Copyright © 2024, wav3"
+license "MIT"
+dependency "bindbc-opengl" version="~>1.1.1"
+dependency "glfw-d" version="~>1.1.1"
+versions "GL_AllowDeprecated"

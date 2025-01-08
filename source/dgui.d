@@ -73,10 +73,15 @@ class Panel
 		glTranslatef(-offsetx,-offsety,0);
 	}
 	
-	void Draw()
+	void DrawBackground()
 	{
 		glBlendColor4ub(32,32,32,255);
 		DGUI_FillRect(0,0,width,height);
+	}
+	
+	void Draw()
+	{
+		DrawBackground();
 		
 		glBlendColor4ub(255,255,255,255);
 		glBegin(GL_LINES);
@@ -230,7 +235,7 @@ class Button : Label
 		callback = origcallback;
 	}
 
-	void DrawBackground()
+	override void DrawBackground()
 	{
 		if(state)
 		{
@@ -308,7 +313,7 @@ class Checkbox : Label
 		width = 16;
 	}
 
-	void DrawBackground()
+	override void DrawBackground()
 	{
 		glBlendColor4ub(64,64,64,255);
 		DGUI_FillRect(0,0,width,height);

@@ -2,6 +2,19 @@ module emu;
 import std.stdio;
 import std.format;
 
+//version = SOLARII;
+version = CWII;
+
+version(CWII)
+{
+	version = BCD;
+}
+
+version(BCD)
+{
+	import bcd;
+}
+
 ubyte[0x8000] data;
 ubyte[0x8000] cwiiram;
 ubyte[0x80000] rom;
@@ -35,13 +48,20 @@ ubyte ReadByte(uint of)
 	ushort addr = cast(ushort)of;
 	if(seg == 0)
 	{
-		if(addr == 0xF410)
+		version(SOLARII)
 		{
-			return 0x80 | data[addr & 0x7FFF];
-		}
-		if(addr == 0xF4AB)
-		{
-			return 0xF0;
+			if(addr == 0xF050)
+			{
+				return 1;
+			}
+			if(addr == 0xE801)
+			{
+				return 0;
+			}
+			if(addr == 0xE802)
+			{
+				return 0;
+			}
 		}
 		if((addr&0xf800) == 0xf800)
 		{
@@ -64,9 +84,20 @@ ubyte ReadByte(uint of)
 			}
 			return cast(ubyte)(~ki);
 		}
-		if(addr >= 0x9000)
+		version(CWII)
 		{
-			return data[addr&0x7fff];
+			if(addr >= 0x9000)
+			{
+				return data[addr&0x7fff];
+			}
+		}
+		
+		version(SOLARII)
+		{
+			if(addr >= 0xE000)
+			{
+				return data[addr&0x7fff];
+			}
 		}
 	}
 	return rom[of&0x7ffff];
@@ -121,7 +152,7 @@ void WriteByte(uint of, ubyte b)
 		{
 			display[(addr&0x7ff) | (cast(ushort)(ReadByte(0xF037)&0x4)<<9)] = b;
 		}
-		if((addr&0x8000) != 0)
+		else if((addr&0x8000) != 0)
 		{
 			data[addr&0x7fff] = b;
 		}
@@ -129,6 +160,28 @@ void WriteByte(uint of, ubyte b)
 		{
 			writeln("BAD @","%x.%x".format(CSR,PC),": %x = %x".format(of,b));
 			ULTRAHALT = true;
+		}
+		if((addr&0xfc00) == 0xf400)
+		{
+			version(BCD)
+			{	
+				if(addr == 0xF400)
+				{
+					bcd.F400_write = true;
+				}
+				else if(addr == 0xF402)
+				{
+					bcd.F402_write = true;
+				}
+				else if(addr == 0xF404)
+				{
+					bcd.F404_write = true;
+				}
+				else if(addr == 0xF405)
+				{
+					bcd.F405_write = true;
+				}
+			}
 		}
 		if((addr == 0xf009) && ((b&3) != 0))
 		{
@@ -759,7 +812,7 @@ void Execute(ushort op)
 	}
 	//
 
-	//writeln("@","%x".format(PC-2),": %x".format(op));
+	//writeln("@","%x:%x".format(CSR,PC-2),": %x".format(op));
 	if(p0 == 0x0C)
 	{
 		if(BranchFlags(p1))
@@ -1339,6 +1392,15 @@ void Execute(ushort op)
 			WriteByte(addr, reg & (0xFF ^ mask));
 			return;
 		}
+		if((op & 0xFF8F) == 0xA080)
+		{
+			uint addr = Seg(Fetch());
+			ubyte reg = ReadByte(addr);
+			ubyte mask = 1 << (p2 & 7);
+			SetFlag(PSW_Z, (reg & mask) == 0);
+			WriteByte(addr, reg | mask);
+			return;
+		}
 		
 	}
 	
@@ -1393,7 +1455,7 @@ void Execute(ushort op)
 			return;
 		}
 	}
-	writeln("@","%x:%x".format(CSR,PC-2),": %x".format(op));
+	writeln("UNIMPLEMENTED @","%x:%x".format(CSR,PC-2),": %x".format(op));
 	ULTRAHALT = true;
 }
 
@@ -1433,7 +1495,14 @@ void Tick()
 					break;
 				}
 				Execute(Fetch());
-			
+				if(ULTRAHALT)
+				{
+					return;
+				}
+				version(BCD)
+				{
+					bcd.Execute();
+				}
 				if(FLAG_DSR)
 				{
 					ADSR = DSR;
@@ -1454,12 +1523,14 @@ void Tick()
 	
 }
 
-void Init()
+void Init(string ROMPATH)
 {
-	auto romfile = File("rom.bin","rb");
+	auto romfile = File(ROMPATH,"rb");
 	romfile.rawRead(rom);
 	romfile.close();
 	PC = ReadCode(2);
 	CSR = 0;
 	SP = ReadCode(0);
+	ULTRAHALT = false;
+	HALT = false;
 }

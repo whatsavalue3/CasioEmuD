@@ -1,3 +1,5 @@
+import std.file;
+import std.path;
 import std.stdio;
 import glfw3.api;
 import dgui;
@@ -15,6 +17,7 @@ int mouse_button = 0;
 int mouse_action = 0;
 int mouse_x = 0;
 int mouse_y = 0;
+string currom = "rom.bin";
 
 extern(C) @nogc nothrow void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -56,12 +59,11 @@ class Display : Panel
 		height = 66;
 	}
 	
-	override void Draw()
+	override void DrawBackground()
 	{
-		super.Draw();
+		glBlendColor4ub(224,224,224,255);
+		DGUI_FillRect(0,0,194,66);
 		glTranslatef(1,1,0);
-		glBlendColor4ub(255,255,255,255);
-		DGUI_FillRect(0,0,192,64);
 		glBlendColor4ub(0,0,0,64);
 		ubyte* dp = emu.display.ptr;
 		for(int i = 0; i < 64; i++)
@@ -111,13 +113,32 @@ class MainApp : Panel
 				buttons ~= newb;
 			}
 		}
+		foreach(string potentialrom; dirEntries(".",SpanMode.shallow))
+		{
+			if(extension(potentialrom) == ".bin")
+			{
+				Button rombutton = new Button(content);
+				rombutton.x = 480;
+				rombutton.y = cast(int)(roms.length)*20;
+				rombutton.text = potentialrom;
+				rombutton.callback3 = &LoadRom;
+				roms ~= rombutton;
+			}
+		}
+		
+	}
+	
+	void LoadRom(Button b)
+	{
+		currom = b.text;
+		emu.Init(currom);
 	}
 	
 	void PressON()
 	{
 		emu.ULTRAHALT = false;
 		emu.HALT = false;
-		emu.Init();
+		emu.Init(currom);
 	}
 	
 	void PressButton(Button b)
@@ -176,6 +197,7 @@ class MainApp : Panel
 	Display screen;
 	Button[] buttons;
 	Button ON;
+	Button[] roms;
 }
 
 MainApp app;
@@ -210,7 +232,7 @@ void main()
 	mainpanel.inner.destroy();
 	mainpanel.inner = app;
 	
-	emu.Init();
+	emu.Init("rom.bin");
 	
 	while (!glfwWindowShouldClose(window))
 	{

@@ -3,7 +3,7 @@ import std.stdio;
 import std.format;
 
 //version = SOLARII;
-version = CWII;
+//version = CWII;
 
 version(CWII)
 {
@@ -13,6 +13,15 @@ version(CWII)
 version(BCD)
 {
 	import bcd;
+}
+
+version(SOLARII)
+{
+	version = EMUKB;
+}
+version(ES)
+{
+	version = EMUKB;
 }
 
 ubyte[0x8000] data;
@@ -26,8 +35,9 @@ ubyte PSW = 0;
 ushort SP = 0;
 ushort EA = 0;
 ubyte DSR = 0;
-ushort ELR = 0;
-ubyte ECSR = 0;
+ushort[4] ELR;
+ubyte[4] ECSR;
+ubyte[4] EPSW;
 bool FLAG_DSR = false;
 ubyte ADSR = 0;
 bool HALT = false;
@@ -42,25 +52,66 @@ ushort OP = 0;
 bool ULTRAHALT = false;
 uint lolcounter = 0;
 
+bool[0x10000] beento;
+ushort maxSP = 0xffff;
+int coverage = 0;
+
+void SetELVL(ubyte l)
+{
+	PSW &= 0xfc;
+	PSW |= l;
+}
+
+ubyte ELVL()
+{
+	return PSW&0x3;
+}
+
+void Raise(ubyte l, uint indx)
+{
+	if(l == 1)
+	{
+		SetFlag(PSW_MIE, false);
+	}
+	SetELVL(l);
+	EPSW[ELVL()] = PSW;
+	ELR[ELVL()] = cast(ushort)PC;
+	ECSR[ELVL()] = CSR;
+	CSR = 0;
+	PC = ReadCode(cast(uint)(indx << 1));
+}
+
 ubyte ReadByte(uint of)
 {
 	ubyte seg = cast(ubyte)(of >>> 16);
 	ushort addr = cast(ushort)of;
 	if(seg == 0)
 	{
-		version(SOLARII)
+		version(EMUKB)
 		{
 			if(addr == 0xF050)
 			{
-				return 1;
-			}
-			if(addr == 0xE801)
-			{
-				return 0;
+				return 3;
 			}
 			if(addr == 0xE802)
 			{
+				for(int i = 0; i < 8; i++)
+				{
+					if(buttons[i])
+					{
+						return cast(ubyte)(1<<i);
+					}
+				}
 				return 0;
+			}
+			if(addr == 0xE801)
+			{
+				ubyte ki = 0x0;
+				for(int i = 0; i < 8; i++)
+				{
+					ki |= buttons[i];
+				}
+				return ki;
 			}
 		}
 		if((addr&0xf800) == 0xf800)
@@ -69,11 +120,19 @@ ubyte ReadByte(uint of)
 		}
 		if(addr == 0xf040)
 		{
+			
 			//ubyte pressedbutton = ((lolcounter&0x10) != 0) ? 0b10111111 : 0xff;
 			//ubyte val = (data[0x7046] == 0x7f) ? pressedbutton : ((data[0x7046] == 0x8) ? pressedbutton : 0xff);
 			
 			//return val;
-			ubyte ko = data[0x7046];
+			version(ES)
+			{
+				ubyte ko = cast(ubyte)(~data[0x7044]);
+			}
+			else
+			{
+				ubyte ko = data[0x7046];
+			}
 			ubyte ki = 0x0;
 			for(int i = 0; i < 8; i++)
 			{
@@ -83,6 +142,13 @@ ubyte ReadByte(uint of)
 				}
 			}
 			return cast(ubyte)(~ki);
+		}
+		version(ES)
+		{
+			if(addr >= 0x8000)
+			{
+				return data[addr&0x7fff];
+			}
 		}
 		version(CWII)
 		{
@@ -145,12 +211,13 @@ void WriteByte(uint of, ubyte b)
 {
 	ubyte seg = cast(ubyte)(of >>> 16);
 	ushort addr = cast(ushort)of;
-	
+	//writeln("@","%x".format(PC-2),": %x = %x".format(of,b));
 	if(seg == 0)
 	{
 		if((addr&0xf800) == 0xf800)
 		{
 			display[(addr&0x7ff) | (cast(ushort)(ReadByte(0xF037)&0x4)<<9)] = b;
+			//writeln("@","%x".format(PC-2),": %x = %x".format(of,b));
 		}
 		else if((addr&0x8000) != 0)
 		{
@@ -812,7 +879,8 @@ void Execute(ushort op)
 	}
 	//
 
-	//writeln("@","%x:%x".format(CSR,PC-2),": %x".format(op));
+	//writeln("@","%x:%x".format(CSR,PC-2),": %x ".format(op),REGS);
+	
 	if(p0 == 0x0C)
 	{
 		if(BranchFlags(p1))
@@ -913,8 +981,8 @@ void Execute(ushort op)
 			ushort cadr = Fetch();
 			if((p3 & 1) == 0x01)
 			{
-				ELR = cast(ushort)PC;
-				ECSR = CSR;
+				ELR[PSW&0x3] = cast(ushort)PC;
+				ECSR[PSW&0x3] = CSR;
 			}
 			PC = cadr;
 			CSR = p1;
@@ -922,29 +990,25 @@ void Execute(ushort op)
 		}
 		if(op == 0xFE1F)
 		{
-			PC = cast(uint)ELR;
-			CSR = ECSR;
+			PC = cast(uint)ELR[PSW&0x3];
+			CSR = ECSR[PSW&0x3];
 			return;
 		}
 		if((op & 0xF0FF) == 0xF0CE)
 		{
 			if((p1 & 2) != 0)
 			{
-				writeln("@","%x".format(PC-2),": %x  unimplemented ECSR ELR".format(op));
-				ULTRAHALT = true;
-				return;
-				//ubyte elvl = PSW&0x3;
-				//PushWord(ECSR[elvl]);
-				//PushWord(ELR[elvl]);
+				PushWord(ECSR[PSW&0x3]);
+				PushWord(ELR[PSW&0x3]);
 			}
 			if((p1 & 4) != 0)
 			{
-				PushByte(PSW);
+				PushByte(EPSW[PSW&0x3]);
 			}
 			if((p1 & 8) != 0)
 			{
-				PushByte(ECSR);
-				PushWord(ELR);
+				PushByte(ECSR[0]);
+				PushWord(ELR[0]);
 			}
 			if((p1 & 1) != 0)
 			{
@@ -970,8 +1034,8 @@ void Execute(ushort op)
 			}
 			if((p1 & 8) != 0)
 			{
-				ELR = PopWord();
-				ECSR = PopByte();
+				ELR[0] = PopWord();
+				ECSR[0] = PopByte();
 				
 			}
 			if((p1 & 4) != 0)
@@ -1072,19 +1136,31 @@ void Execute(ushort op)
 			ushort cadr = GetERN(p2);
 			if((p3 & 1) == 0x01)
 			{
-				ELR = cast(ushort)PC;
-				ECSR = CSR;
+				ELR[0] = cast(ushort)PC;
+				ECSR[0] = CSR;
 			}
 			PC = cadr;
 			return;
 		}
-		//if((op & 0xF0FF) == 0x805F)
-		//{
-		//	int val = this.neg8(this.getRegister(p1));
-		//	this.setRegister(p1, val);
-		//	return;
-		//}
-		
+		if(op == 0xFFFF) {
+			version(TESTGLITCH)
+			{
+				Reset();
+			}
+			else
+			{
+				if((ELVL & 0xFE) == 0) 
+				{
+					Raise(2, 2);
+				}
+				else
+				{
+					Reset();
+					Raise(0, 1);
+				}
+			}
+			return;
+		}
 	}
 	
 	if(p0 == 0x09)
@@ -1325,6 +1401,11 @@ void Execute(ushort op)
 			DsrPrefix(p23);
 			return;
 		}
+		if((op & 0xFF00) == 0xE900)
+		{
+			PSW = p23;
+			return;
+		}
 	}
 	if(p0 == 0x0A)
 	{
@@ -1401,6 +1482,21 @@ void Execute(ushort op)
 			WriteByte(addr, reg | mask);
 			return;
 		}
+		if((op & 0xFF0F) == 0xA00C)
+		{
+			EPSW[ELVL()] = REGS[p2];
+			return;
+		}
+		if((op & 0xF1FF) == 0xA00D)
+		{
+			ELR[ELVL()] = GetERN(p1);
+			return;
+		}
+		if((op & 0xFF0F) == 0xA00F)
+		{
+			ECSR[ELVL()] = REGS[p2];
+			return;
+		}
 		
 	}
 	
@@ -1465,62 +1561,155 @@ void Raise(ubyte indx)
 	HALT = false;
 }
 
+
 void Tick()
+{
+	//coverage += beento[PC] ? 0 : 1;
+	//if(maxSP > SP)
+	//{
+	//	maxSP = SP;
+	//	writeln("PC: %x   STACK: %x".format(PC,SP));
+	//}
+	if(HALT)
+	{
+		return;
+	}
+	Execute(Fetch());
+	version(BCD)
+	{
+		bcd.Execute();
+	}
+	if(ULTRAHALT)
+	{
+		return;
+	}
+	if(FLAG_DSR)
+	{
+		ADSR = DSR;
+		FLAG_DSR = false;
+	}
+	else
+	{
+		ADSR = 0;
+	}
+}
+
+void RunFrame()
 {
 	if(ULTRAHALT)
 	{
 		return;
 	}
 	
-	
-	
 	for(int i = 0; i < 256; i++)
 	{
 		if(HALT)
 		{
-			ushort counter = ReadWord(0xf022);
-			if(counter >= ReadWord(0xf020))
+			version(FUZZ)
 			{
-				counter -= ReadWord(0xf020);
-				Raise(9);
+			
 			}
-			WriteWord(cast(uint)0xf022,cast(ushort)(counter+1));
+			else
+			{
+				ushort counter = ReadWord(0xf022);
+				if(counter >= ReadWord(0xf020))
+				{
+					counter -= ReadWord(0xf020);
+					Raise(9);
+				}
+				WriteWord(cast(uint)0xf022,cast(ushort)(counter+1));
+			}
 		}
 		else
 		{
 			for(int j = 0; j < 256; j++)
 			{
-				if(HALT)
-				{
-					break;
-				}
-				Execute(Fetch());
+				Tick();
 				if(ULTRAHALT)
 				{
 					return;
 				}
-				version(BCD)
+				if(HALT)
 				{
-					bcd.Execute();
-				}
-				if(FLAG_DSR)
-				{
-					ADSR = DSR;
-					FLAG_DSR = false;
-				}
-				else
-				{
-					ADSR = 0;
+					break;
 				}
 			}
 		}
-		
-		
-		
-		
-		
 	}
+}
+//ulong currand = 12652293126762313152;
+//ulong currand = 3271302852072201075;
+//ulong currand = 822933974911875079;
+//ulong currand = 1000;
+const startseed = 228474987015621010;
+//ulong currand = 5741033577064303640;
+ulong currand = startseed;
+
+int HALTCOUNT = 0;
+int MINHALTCOUNT = 0;
+int HALTEDFOR = 0;
+ulong startrand = startseed;
+//ulong startrand = 5741033577064303640;
+
+const string[64] buttonlabels = [
+	"     ","     ","SHIFT","a b/c"," +/- ","  7  ","  4  ","  1  ",
+	"     ","     ","MODE ","*' ''","  >  ","  8  ","  5  ","  2  ",
+	"     ","     "," x^2 "," hyp ","((---","  9  ","  6  ","  3  ",
+	"     ","     "," log "," sin ","---))","  C  ","  *  ","  +  ",
+	"     ","     ","  ln "," cos "," x^y ","  AC ","  /  ","  -  ",
+	"     ","     ","     "," tan ","  MR ","     ","     ","     ",
+	"     ","     ","     ","  0  ","  .  "," EXP ","  =  ","  M+ ",
+	"     ","     ","     ","     ","     ","     ","     ","     "
+	];
+
+void Fuzz()
+{
+	if(ULTRAHALT)
+	{
+		return;
+	}
+	*(cast(ulong*)(buttons.ptr)) = 0;
+	//Reset();
 	
+	for(int i = 212144*2; i >= 0; --i)
+	{
+		Tick();
+		if(HALT)
+		{
+			*(cast(ulong*)(buttons.ptr)) = 0;
+			buttons[(currand>>13)&0x7] = 1<<((currand>>34)&0x7);
+			if(startrand == startseed)
+			{
+				writeln("%x BUTTON:     ".format(currand),i,"    ",(currand>>13)&0x7," ",(currand>>34)&0x7," ",buttonlabels[((((currand>>13)&0x7))<<3)|(7-((currand>>34)&0x7))]);
+			}
+			currand ^= 0b1010101101010110101011010101101100011010101101010110101011010101;
+			currand *= 0b101110010000110001;
+			currand ^= 0b1101101010011010110110001101010101010110101011010111010101101001;
+			currand += 0b1001001010111100000011000110100010000001000010;
+			Raise(5);
+			HALTCOUNT = HALTEDFOR;
+			if (MINHALTCOUNT <= HALTCOUNT)
+			{
+				MINHALTCOUNT = HALTCOUNT;
+				writeln("startrand ", startrand, " count:",MINHALTCOUNT);
+			}
+			HALTEDFOR = 0;
+			//startrand = currand;
+		}
+		else
+		{
+			HALTEDFOR++;
+		}
+		if(ULTRAHALT)
+		{
+			HALTCOUNT = i;
+			writeln("ULTRAHALT: startrand ", startrand, " count:",MINHALTCOUNT, " ", HALTCOUNT);
+			return;
+		}
+	}
+	startrand = currand;
+	//ULTRAHALT = true;
+	//writeln("r ", startrand);
 }
 
 void Init(string ROMPATH)
@@ -1528,9 +1717,15 @@ void Init(string ROMPATH)
 	auto romfile = File(ROMPATH,"rb");
 	romfile.rawRead(rom);
 	romfile.close();
+	Reset();
+}
+
+void Reset()
+{
 	PC = ReadCode(2);
 	CSR = 0;
 	SP = ReadCode(0);
+	PSW = 0;
 	ULTRAHALT = false;
 	HALT = false;
 }

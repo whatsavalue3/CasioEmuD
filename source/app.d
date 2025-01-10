@@ -27,7 +27,7 @@ else version(CWII)
 }
 else version(ES)
 {
-	string currom = "GY455XE.rom.bin";
+	string currom = "rom018_emu.bin";
 }
 
 extern(C) @nogc nothrow void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
@@ -65,6 +65,9 @@ bool GetBit(int bitn)
 {
 	return (emu.display[bitn>>3]&(1<<(7^(bitn&0x7)))) != 0;
 }
+
+const float[] pixelmaprgb = [0.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0];
+const float[] pixelmapa = [1.0,1.0];
 
 class Display : Panel
 {
@@ -105,6 +108,31 @@ class Display : Panel
 				glRasterPos2i(0,i);
 				glBitmap(96,1,0,0,0,0,(cast(GLubyte*)dp+i*16));
 			}
+		
+		/*
+			glBlendColor4ub(255,255,255,255);
+			glRasterPos2i(0,32);
+			glPixelMapfv(GL_PIXEL_MAP_I_TO_R,0x2,pixelmaprgb.ptr);
+			glPixelMapfv(GL_PIXEL_MAP_I_TO_G,0x2,pixelmaprgb.ptr);
+			glPixelMapfv(GL_PIXEL_MAP_I_TO_B,0x2,pixelmaprgb.ptr);
+			glPixelMapfv(GL_PIXEL_MAP_I_TO_A,0x2,pixelmapa.ptr);
+			//glPixelTransferi(GL_MAP_COLOR,0);
+			//glPixelTransferf(GL_RED_SCALE,255.0);
+			glPixelTransferi(GL_INDEX_SHIFT,0);
+			glPixelTransferi(GL_INDEX_OFFSET,0);
+			glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+			//for(int i = 0; i < 32; i++)
+			//{
+				//glRasterPos2i(0,i);
+				//glPixelZoom(2.0,2.0);
+			//*(dp+0x140) = 0xff;
+			writeln(dp[32]);
+			glDrawPixels(128,32,GL_COLOR_INDEX,GL_BITMAP,dp);
+			glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+				//glBitmap(96,1,0,0,0,0,(cast(GLubyte*)dp+i*16));
+				
+			//}
+			*/
 		}
 		version(SOLARII)
 		{
@@ -193,7 +221,8 @@ class Display : Panel
 
 version(CWII)
 {
-	const string[64] labels = ["     ","SETUP","SHIFT","  x  ", " (-) ", "  7  ","  4  ","  1  ",
+	const string[64] labels = [
+	"     ","SETUP","SHIFT","  x  ", " (-) ", "  7  ","  4  ","  1  ",
 	"MODE ","BACK "," VAR ","frac "," sin ","  8  ","  5  ","  2  ",
 	"     ", "LEFT ","f(x) ","sqrt "," cos ","  9  ","  6  ","  3  ",
 	"  UP ","  OK ","DOWN "," x^( "," tan "," DEL ", "  *  ", "  +  ",
@@ -218,13 +247,13 @@ version(SOLARII)
 version(ES)
 {
 	const string[64] labels = [
-	"     ","     ","SHIFT","a b/c"," +/- ","  7  ","  4  ","  1  ",
-	"     ","     ","MODE ","*' ''","  >  ","  8  ","  5  ","  2  ",
-	"     ","     "," x^2 "," hyp ","((---","  9  ","  6  ","  3  ",
-	"     ","     "," log "," sin ","---))","  C  ","  *  ","  +  ",
-	"     ","     ","  ln "," cos "," x^y ","  AC ","  /  ","  -  ",
-	"     ","     ","     "," tan ","  MR ","     ","     ","     ",
-	"     ","     ","     ","  0  ","  .  "," EXP ","  =  ","  M+ ",
+	"SHIFT"," CALC"," frac"," (-) "," RCL ","  7  ","  4  ","  1  ",
+	"ALPHA","INTEG"," sqrt"," dms "," ENG ","  8  ","  5  ","  2  ",
+	"  UP "," LEFT"," x^2 "," hyp ","  (  ","  9  ","  6  ","  3  ",
+	"RIGHT"," DOWN"," x^( "," sin ","  )  "," DEL ","  *  ","  +  ",
+	" MODE"," x^-1"," log "," cos "," S<>D","  AC ","  /  ","  -  ",
+	"     ","log_n","  ln "," tan ","  M+ ","     ","     ","     ",
+	"     ","     ","     ","  0  ","  .  ","*10^x"," Ans ","  =  ",
 	"     ","     ","     ","     ","     ","     ","     ","     "
 	];
 }
@@ -397,7 +426,7 @@ void main()
 	glfwSwapInterval(1);
 	loadOpenGL();
 	loadExtendedGLSymbol(cast(void**)&glBitmap, "glBitmap");
-	
+	writeln(glBitmap);
 	mainpanel = new Window();
 	
 	app = new MainApp(mainpanel);
@@ -430,19 +459,16 @@ void main()
 			//writeln(emu.coverage, " ", emu.MINHALTCOUNT);
 			//emu.MINHALTCOUNT = 0;
 		}
+		else version(TESTGLITCH)
+		{
+			for(int i = 0; i < 64; i++)
+			{
+				emu.Tick();
+			}
+		}
 		else
 		{
-			version(TESTGLITCH)
-			{
-				for(int i = 0; i < 64; i++)
-				{
-					emu.Tick();
-				}
-			}
-			else
-			{
-				emu.RunFrame();
-			}
+			emu.RunFrame();
 		}
 		
 		int width, height;

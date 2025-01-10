@@ -1,6 +1,8 @@
 module emu;
 import std.stdio;
 import std.format;
+import std.conv;
+import std.array;
 
 //version = SOLARII;
 //version = CWII;
@@ -93,7 +95,7 @@ ubyte ReadByte(uint of)
 			{
 				return 3;
 			}
-			if(addr == 0xE802)
+			if(addr == 0x8E02)
 			{
 				for(int i = 0; i < 8; i++)
 				{
@@ -104,7 +106,7 @@ ubyte ReadByte(uint of)
 				}
 				return 0;
 			}
-			if(addr == 0xE801)
+			if(addr == 0x8E01)
 			{
 				ubyte ki = 0x0;
 				for(int i = 0; i < 8; i++)
@@ -216,6 +218,7 @@ void WriteByte(uint of, ubyte b)
 	{
 		if((addr&0xf800) == 0xf800)
 		{
+			//writeln(addr&0x7ff, " ", b);
 			display[(addr&0x7ff) | (cast(ushort)(ReadByte(0xF037)&0x4)<<9)] = b;
 			//writeln("@","%x".format(PC-2),": %x = %x".format(of,b));
 		}
@@ -1712,12 +1715,51 @@ void Fuzz()
 	//writeln("r ", startrand);
 }
 
+uint[string] rops;
+
 void Init(string ROMPATH)
 {
+	rops.clear();
 	auto romfile = File(ROMPATH,"rb");
 	romfile.rawRead(rom);
+	ulong s = romfile.size();
+	for(ulong i = 32; i < s; i += 2)
+	{
+		ushort op = cast(ushort)(rom[i]|(rom[i+1]<<8));
+		if(((op&0xF0FF) == 0xF08E) || (op == 0xFE1F))
+		{
+			
+			string newrop = "%04x".format(op);
+			for(ulong j = 2; j < 32; j += 2)
+			{
+				op = cast(ushort)(rom[i-j]|(rom[i-j+1]<<8));
+				if((op>>>12) == 0xC)
+				{
+					break;
+				}
+				if(op == 0xFE1F)
+				{
+					break;
+				}
+				if((op & 0xF0FE) == 0xF000) { break; }
+				if((op & 0xF0FF) == 0xF0CE) { break; }
+				if((op & 0xF1FF) == 0xF05E) { break; }
+				if((op & 0xF3FF) == 0xF06E) { break; }
+				if((op & 0xF7FF) == 0xF07E) { break; } 
+				if((op & 0xF0FF) == 0xF04E) { break; }
+				if((op & 0xF0FF) == 0xF08E) { break; }
+				newrop = "%04x.".format(op) ~ newrop;
+			}
+			
+			rops[newrop] = cast(uint)i;
+			//writeln(i);
+		}
+	}
+	writeln(to!string(rops).replace(" ","\n"));
 	romfile.close();
 	Reset();
+	
+	
 }
 
 void Reset()

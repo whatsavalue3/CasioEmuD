@@ -201,8 +201,8 @@ version(CWII)
 	" /\\  "," \\/  ","TOOLS","log_n","  )  ","     ","     ","     ",
 	"     ","     ","     ","  0  ","  .  ","*10^x","FORM.","  =  ",
 	"     ","     ","     ","     ","     ","     ","     ","     "];
-}
-version(SOLARII)
+} 
+else version(SOLARII)
 {
 	const string[64] labels = [
 	"     ","     ","SHIFT","a b/c"," +/- ","  7  ","  4  ","  1  ",
@@ -215,8 +215,8 @@ version(SOLARII)
 	"     ","     ","     ","     ","     ","     ","     ","     "
 	];
 	const string[13] digitflags = ["0","S","M","3","4","5","M","K","DEG","RAD","GRA","11","12"];
-}
-version(ES)
+} 
+else version(ES)
 {
 	const string[64] labels = [
 	"SHIFT"," CALC"," frac"," (-) "," RCL ","  7   ","  4   ","  1   ",
@@ -251,71 +251,91 @@ class MainApp : Panel
 			ON.callback = &PressON;
 			ON.x = 256;
 			ON.y = 4;
-			for(int i = 2; i <= 4; i++)
+			version(ES)
 			{
-				for(int j = 0; j <= 5; j++)
+				for(int i = 2; i <= 4; i++)
 				{
-					Button newb = new Button(content);
-					newb.x = j * 44 + 5;
-					newb.y = i * 18 + 72;
-					newb.callback3 = &PressButton;
-					newb.callback2 = &ReleaseButton;
-					newb.text = labels[j*8+i];
-					newb.userdata = j*8+i;
-					buttons ~= newb;
-				}
-			}
-			for(int i = 5; i <= 7; i++)
-			{
-				for(int j = 0; j <= 4; j++)
-				{
-					Button newb = new Button(content);
-					newb.x = j * 53 + 5;
-					newb.y = i * 18 + 72;
-					newb.callback3 = &PressButton;
-					newb.callback2 = &ReleaseButton;
-					newb.text = labels[j*8+i];
-					newb.userdata = j*8+i;
-					buttons ~= newb;
-				}
-			}
-			for(int i = 3; i <= 7; i++)
-			{
-				Button newb = new Button(content);
-				newb.x = (i-3) * 53 + 5;
-				newb.y = (8) * 18 + 72;
-				newb.callback3 = &PressButton;
-				newb.callback2 = &ReleaseButton;
-				newb.text = labels[6*8+i];
-				newb.userdata = 6*8+i;
-				buttons ~= newb;
-			}
-			for(int i = 0; i <= 1; i++)
-			{
-				for(int j = 0; j <= 5; j++)
-				{
-					if(j == 5 && i == 0)
+					for(int j = 0; j <= 5; j++)
 					{
-						break;
-					}
-					Button newb = new Button(content);
-					
-					if(j == 2 || j == 3)
-					{
-						newb.x = ((j*2-5)-i*2)*8 + 3*44 + 5 - ((j-2+i)&1)*4;
-						newb.y = ((i*2-1)+j*2-6)*4  + 1*18 + 66;
-					}
-					else
-					{
+						Button newb = new Button(content);
 						newb.x = j * 44 + 5;
 						newb.y = i * 18 + 72;
+						newb.callback3 = &PressButton;
+						newb.callback2 = &ReleaseButton;
+						newb.text = labels[j*8+i];
+						newb.userdata = j*8+i;
+						buttons ~= newb;
 					}
-					
+				}
+				for(int i = 5; i <= 7; i++)
+				{
+					for(int j = 0; j <= 4; j++)
+					{
+						Button newb = new Button(content);
+						newb.x = j * 53 + 5;
+						newb.y = i * 18 + 72;
+						newb.callback3 = &PressButton;
+						newb.callback2 = &ReleaseButton;
+						newb.text = labels[j*8+i];
+						newb.userdata = j*8+i;
+						buttons ~= newb;
+					}
+				}
+				for(int i = 3; i <= 7; i++)
+				{
+					Button newb = new Button(content);
+					newb.x = (i-3) * 53 + 5;
+					newb.y = (8) * 18 + 72;
 					newb.callback3 = &PressButton;
 					newb.callback2 = &ReleaseButton;
-					newb.text = labels[j*8+i];
-					newb.userdata = j*8+i;
+					newb.text = labels[6*8+i];
+					newb.userdata = 6*8+i;
 					buttons ~= newb;
+				}
+				for(int i = 0; i <= 1; i++)
+				{
+					for(int j = 0; j <= 5; j++)
+					{
+						if(j == 5 && i == 0)
+						{
+							break;
+						}
+						Button newb = new Button(content);
+						
+						if(j == 2 || j == 3)
+						{
+							newb.x = ((j*2-5)-i*2)*8 + 3*44 + 5 - ((j-2+i)&1)*4;
+							newb.y = ((i*2-1)+j*2-6)*4  + 1*18 + 66;
+						}
+						else
+						{
+							newb.x = j * 44 + 5;
+							newb.y = i * 18 + 72;
+						}
+						
+						newb.callback3 = &PressButton;
+						newb.callback2 = &ReleaseButton;
+						newb.text = labels[j*8+i];
+						newb.userdata = j*8+i;
+						buttons ~= newb;
+					}
+				}
+			}
+			else
+			{
+				for(int i = 0; i < 8; i++)
+				{
+					for(int j = 0; j < 8; j++)
+					{
+						Button newb = new Button(content);
+						newb.x = j * 44 + 5;
+						newb.y = i * 18 + 72;
+						newb.callback3 = &PressButton;
+						newb.callback2 = &ReleaseButton;
+						newb.text = labels[j*8+i];
+						newb.userdata = j*8+i;
+						buttons ~= newb;
+					}
 				}
 			}
 			foreach(string potentialrom; dirEntries(".",SpanMode.shallow))

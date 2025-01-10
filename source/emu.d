@@ -1697,7 +1697,6 @@ void Fuzz()
 				writeln("startrand ", startrand, " count:",MINHALTCOUNT);
 			}
 			HALTEDFOR = 0;
-			//startrand = currand;
 		}
 		else
 		{
@@ -1711,8 +1710,6 @@ void Fuzz()
 		}
 	}
 	startrand = currand;
-	//ULTRAHALT = true;
-	//writeln("r ", startrand);
 }
 
 uint[string] rops;
@@ -1754,7 +1751,6 @@ void Init(string ROMPATH)
 				}
 				
 				rops[newrop] = cast(uint)i;
-				//writeln(i);
 			}
 		}
 		writeln(to!string(rops).replace(" ","\n"));

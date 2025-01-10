@@ -66,8 +66,6 @@ bool GetBit(int bitn)
 	return (emu.display[bitn>>3]&(1<<(7^(bitn&0x7)))) != 0;
 }
 
-const float[] pixelmaprgb = [0.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0];
-const float[] pixelmapa = [1.0,1.0];
 
 class Display : Panel
 {
@@ -108,31 +106,6 @@ class Display : Panel
 			{
 				glBitmap(96,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*16));
 			}
-		
-		/*
-			glBlendColor4ub(255,255,255,255);
-			glRasterPos2i(0,32);
-			glPixelMapfv(GL_PIXEL_MAP_I_TO_R,0x2,pixelmaprgb.ptr);
-			glPixelMapfv(GL_PIXEL_MAP_I_TO_G,0x2,pixelmaprgb.ptr);
-			glPixelMapfv(GL_PIXEL_MAP_I_TO_B,0x2,pixelmaprgb.ptr);
-			glPixelMapfv(GL_PIXEL_MAP_I_TO_A,0x2,pixelmapa.ptr);
-			//glPixelTransferi(GL_MAP_COLOR,0);
-			//glPixelTransferf(GL_RED_SCALE,255.0);
-			glPixelTransferi(GL_INDEX_SHIFT,0);
-			glPixelTransferi(GL_INDEX_OFFSET,0);
-			glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-			//for(int i = 0; i < 32; i++)
-			//{
-				//glRasterPos2i(0,i);
-				//glPixelZoom(2.0,2.0);
-			//*(dp+0x140) = 0xff;
-			writeln(dp[32]);
-			glDrawPixels(128,32,GL_COLOR_INDEX,GL_BITMAP,dp);
-			glPixelStorei(GL_UNPACK_ALIGNMENT,4);
-				//glBitmap(96,1,0,0,0,0,(cast(GLubyte*)dp+i*16));
-				
-			//}
-			*/
 		}
 		version(SOLARII)
 		{
@@ -211,8 +184,6 @@ class Display : Panel
 			}
 			glTranslatef(-11*16,0,0);
 			glScalef(2,2,1);
-			//glRasterPos2i(0,4);
-			//glBitmap(64,4,0,0,0,0,(cast(GLubyte*)dp));
 			
 		}
 		glTranslatef(-1,-1,0);
@@ -243,24 +214,25 @@ version(SOLARII)
 	"     ","     ","     ","  0  ","  .  "," EXP ","  =  ","  M+ ",
 	"     ","     ","     ","     ","     ","     ","     ","     "
 	];
+	const string[13] digitflags = ["0","S","M","3","4","5","M","K","DEG","RAD","GRA","11","12"];
 }
 version(ES)
 {
 	const string[64] labels = [
-	"SHIFT"," CALC"," frac"," (-) "," RCL ","  7  ","  4  ","  1  ",
-	"ALPHA","INTEG"," sqrt"," dms "," ENG ","  8  ","  5  ","  2  ",
-	"  UP "," LEFT"," x^2 "," hyp ","  (  ","  9  ","  6  ","  3  ",
-	"RIGHT"," DOWN"," x^( "," sin ","  )  "," DEL ","  *  ","  +  ",
-	" MODE"," x^-1"," log "," cos "," S<>D","  AC ","  /  ","  -  ",
+	"SHIFT"," CALC"," frac"," (-) "," RCL ","  7   ","  4   ","  1   ",
+	"ALPHA","INTEG"," sqrt"," dms "," ENG ","  8   ","  5   ","  2   ",
+	"^"," <"," x^2 "," hyp ","  (  ","  9   ","  6   ","  3   ",
+	"> ","v"," x^( "," sin ","  )  "," DEL  ","  *   ","  +   ",
+	" MODE"," x^-1"," log "," cos "," S<>D","  AC  ","  /   ","  -   ",
 	"     ","log_n","  ln "," tan ","  M+ ","     ","     ","     ",
-	"     ","     ","     ","  0  ","  .  ","*10^x"," Ans ","  =  ",
+	"     ","     ","     ","  0   ","  .   ","*10^x "," Ans  ","  =   ",
 	"     ","     ","     ","     ","     ","     ","     ","     "
 	];
 }
 
 
 
-const string[13] digitflags = ["0","S","M","3","4","5","M","K","DEG","RAD","GRA","11","12"];
+
 
 class MainApp : Panel
 {
@@ -277,16 +249,72 @@ class MainApp : Panel
 		{
 			ON = new Button(content,"ON");
 			ON.callback = &PressON;
-			for(int i = 0; i < 8; i++)
+			ON.x = 256;
+			ON.y = 4;
+			for(int i = 2; i <= 4; i++)
 			{
-				for(int j = 0; j < 8; j++)
+				for(int j = 0; j <= 5; j++)
 				{
 					Button newb = new Button(content);
-					newb.x = i * 44 + 5;
-					newb.y = j * 18 + 72;
+					newb.x = j * 44 + 5;
+					newb.y = i * 18 + 72;
 					newb.callback3 = &PressButton;
 					newb.callback2 = &ReleaseButton;
-					newb.text = labels[buttons.length];
+					newb.text = labels[j*8+i];
+					newb.userdata = j*8+i;
+					buttons ~= newb;
+				}
+			}
+			for(int i = 5; i <= 7; i++)
+			{
+				for(int j = 0; j <= 4; j++)
+				{
+					Button newb = new Button(content);
+					newb.x = j * 53 + 5;
+					newb.y = i * 18 + 72;
+					newb.callback3 = &PressButton;
+					newb.callback2 = &ReleaseButton;
+					newb.text = labels[j*8+i];
+					newb.userdata = j*8+i;
+					buttons ~= newb;
+				}
+			}
+			for(int i = 3; i <= 7; i++)
+			{
+				Button newb = new Button(content);
+				newb.x = (i-3) * 53 + 5;
+				newb.y = (8) * 18 + 72;
+				newb.callback3 = &PressButton;
+				newb.callback2 = &ReleaseButton;
+				newb.text = labels[6*8+i];
+				newb.userdata = 6*8+i;
+				buttons ~= newb;
+			}
+			for(int i = 0; i <= 1; i++)
+			{
+				for(int j = 0; j <= 5; j++)
+				{
+					if(j == 5 && i == 0)
+					{
+						break;
+					}
+					Button newb = new Button(content);
+					
+					if(j == 2 || j == 3)
+					{
+						newb.x = ((j*2-5)-i*2)*8 + 3*44 + 5 - ((j-2+i)&1)*4;
+						newb.y = ((i*2-1)+j*2-6)*4  + 1*18 + 66;
+					}
+					else
+					{
+						newb.x = j * 44 + 5;
+						newb.y = i * 18 + 72;
+					}
+					
+					newb.callback3 = &PressButton;
+					newb.callback2 = &ReleaseButton;
+					newb.text = labels[j*8+i];
+					newb.userdata = j*8+i;
 					buttons ~= newb;
 				}
 			}
@@ -295,13 +323,26 @@ class MainApp : Panel
 				if(extension(potentialrom) == ".bin")
 				{
 					Button rombutton = new Button(content);
-					rombutton.x = 480;
+					rombutton.x = 540;
 					rombutton.y = cast(int)(roms.length)*20;
 					rombutton.text = potentialrom;
 					rombutton.callback3 = &LoadRom;
 					roms ~= rombutton;
 				}
 			}
+			SaveButton = new Button(content,"Save");
+			SaveButton.x = 300;
+			SaveButton.y = 4;
+			SaveButton.callback = &Save;
+			LoadButton = new Button(content,"Load");
+			LoadButton.x = 460;
+			LoadButton.y = 4;
+			LoadButton.callback = &Load;
+			SaveName = new Textbox(content);
+			SaveName.x = 332;
+			SaveName.y = 4;
+			SaveName.width = 128;
+			SaveName.text = "default";
 		}
 		
 	}
@@ -310,6 +351,37 @@ class MainApp : Panel
 	{
 		currom = b.text;
 		emu.Init(currom);
+	}
+	
+	void Save()
+	{
+		auto sav = File(SaveName.text ~ ".sav","wb");
+		sav.rawWrite([emu.PC]);
+		sav.rawWrite([emu.SP]);
+		sav.rawWrite([emu.PSW]);
+		sav.rawWrite([emu.EA]);
+		sav.rawWrite([emu.DSR]);
+		sav.rawWrite([emu.FLAG_DSR]);
+		sav.rawWrite([emu.ADSR]);
+		sav.rawWrite(emu.REGS);
+		sav.rawWrite(data);
+		sav.rawWrite(display);
+		sav.close();
+	}
+	void Load()
+	{
+		auto sav = File(SaveName.text ~ ".sav","rb");
+		emu.PC = sav.rawRead([emu.PC])[0];
+		emu.SP = sav.rawRead([emu.SP])[0];
+		emu.PSW = sav.rawRead([emu.PSW])[0];
+		emu.EA = sav.rawRead([emu.EA])[0];
+		emu.DSR = sav.rawRead([emu.DSR])[0];
+		emu.FLAG_DSR = sav.rawRead([emu.FLAG_DSR])[0];
+		emu.ADSR = sav.rawRead([emu.ADSR])[0];
+		sav.rawRead(emu.REGS);
+		sav.rawRead(data);
+		sav.rawRead(display);
+		sav.close();
 	}
 	
 	void PressON()
@@ -337,33 +409,17 @@ class MainApp : Panel
 	
 	void PressButton(Button b)
 	{
-		int i = 0;
-		foreach(Button check; buttons)
-		{
-			if(check == b)
-			{
-				emu.buttons[i>>3] |= 1<<(7-(i&0x7));
-				writeln("BUTTON: ",i>>3," ",7-(i&0x7));
-				break;
-			}
-			i++;
-		}
+		int i = b.userdata;
+		emu.buttons[i>>3] |= 1<<(7-(i&0x7));
+		//writeln("BUTTON: ",i>>3," ",7-(i&0x7));
 		
 		emu.Raise(5);
 	}
 	
 	void ReleaseButton(Button b)
 	{
-		int i = 0;
-		foreach(Button check; buttons)
-		{
-			if(check == b)
-			{
-				emu.buttons[i>>3] &= ~(1<<(7-(i&0x7)));
-				break;
-			}
-			i++;
-		}
+		int i = b.userdata;
+		emu.buttons[i>>3] &= ~(1<<(7-(i&0x7)));
 		
 		emu.Raise(5);
 	}
@@ -376,15 +432,6 @@ class MainApp : Panel
 		content.y = 4;
 		screen.x = 4;
 		screen.y = 4;
-		version(FUZZ)
-		{
-		
-		}
-		else
-		{
-			ON.x = 256;
-			ON.y = 4;
-		}
 	}
 	
 	void SetContent(Panel newcontent)
@@ -400,6 +447,10 @@ class MainApp : Panel
 	Button[] buttons;
 	Button ON;
 	Button[] roms;
+	Button SaveButton;
+	Button LoadButton;
+	Textbox SaveName;
+	
 }
 
 MainApp app;
@@ -463,8 +514,6 @@ void main()
 		version(FUZZ)
 		{
 			emu.Fuzz();
-			//writeln(emu.coverage, " ", emu.MINHALTCOUNT);
-			//emu.MINHALTCOUNT = 0;
 		}
 		else version(TESTGLITCH)
 		{

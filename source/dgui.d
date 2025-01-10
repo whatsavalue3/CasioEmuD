@@ -219,6 +219,7 @@ class Label : Panel
 	
 	string text = "";
 	bool stretch = false;
+	int userdata = 0;
 }
 
 class Button : Label

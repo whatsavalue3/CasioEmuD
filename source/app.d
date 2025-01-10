@@ -87,27 +87,35 @@ class Display : Panel
 		version(CWII)
 		{
 			glBlendColor4ub(0,0,0,64);
+			
 			for(int i = 0; i < 64; i++)
 			{
-				glRasterPos2i(0,i);
+				//glRasterPos2i(0,i);
+				glTranslatef(0,1,0);
+				glRasterPos2i(0,0);
 				glBitmap(192,1,0,0,0,0,(cast(GLubyte*)dp+i*32));
 			}
+			glTranslatef(0,-64,0);
 			glBlendColor4ub(0,0,0,128);
 			dp = emu.display.ptr + 0x800;
 			for(int i = 0; i < 64; i++)
 			{
-				glRasterPos2i(0,i);
+				glTranslatef(0,1,0);
+				glRasterPos2i(0,0);
 				glBitmap(192,1,0,0,0,0,(cast(GLubyte*)dp+i*32));
 			}
+			glTranslatef(0,-64,0);
 		}
 		version(ES)
 		{
 			glBlendColor4ub(0,0,0,255);
 			for(int i = 0; i < 32; i++)
 			{
-				glRasterPos2i(0,i);
+				glTranslatef(0,1,0);
+				glRasterPos2i(0,0);
 				glBitmap(96,1,0,0,0,0,(cast(GLubyte*)dp+i*16));
 			}
+			glTranslatef(0,-32,0);
 		
 		/*
 			glBlendColor4ub(255,255,255,255);

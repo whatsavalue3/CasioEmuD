@@ -1722,40 +1722,43 @@ void Init(string ROMPATH)
 	rops.clear();
 	auto romfile = File(ROMPATH,"rb");
 	romfile.rawRead(rom);
-	ulong s = romfile.size();
-	for(ulong i = 32; i < s; i += 2)
+	version(ROPFIND)
 	{
-		ushort op = cast(ushort)(rom[i]|(rom[i+1]<<8));
-		if(((op&0xF0FF) == 0xF08E) || (op == 0xFE1F))
+		ulong s = romfile.size();
+		for(ulong i = 32; i < s; i += 2)
 		{
-			
-			string newrop = "%04x".format(op);
-			for(ulong j = 2; j < 32; j += 2)
+			ushort op = cast(ushort)(rom[i]|(rom[i+1]<<8));
+			if(((op&0xF0FF) == 0xF08E) || (op == 0xFE1F))
 			{
-				op = cast(ushort)(rom[i-j]|(rom[i-j+1]<<8));
-				if((op>>>12) == 0xC)
+				
+				string newrop = "%04x".format(op);
+				for(ulong j = 2; j < 32; j += 2)
 				{
-					break;
+					op = cast(ushort)(rom[i-j]|(rom[i-j+1]<<8));
+					if((op>>>12) == 0xC)
+					{
+						break;
+					}
+					if(op == 0xFE1F)
+					{
+						break;
+					}
+					if((op & 0xF0FE) == 0xF000) { break; }
+					if((op & 0xF0FF) == 0xF0CE) { break; }
+					if((op & 0xF1FF) == 0xF05E) { break; }
+					if((op & 0xF3FF) == 0xF06E) { break; }
+					if((op & 0xF7FF) == 0xF07E) { break; } 
+					if((op & 0xF0FF) == 0xF04E) { break; }
+					if((op & 0xF0FF) == 0xF08E) { break; }
+					newrop = "%04x.".format(op) ~ newrop;
 				}
-				if(op == 0xFE1F)
-				{
-					break;
-				}
-				if((op & 0xF0FE) == 0xF000) { break; }
-				if((op & 0xF0FF) == 0xF0CE) { break; }
-				if((op & 0xF1FF) == 0xF05E) { break; }
-				if((op & 0xF3FF) == 0xF06E) { break; }
-				if((op & 0xF7FF) == 0xF07E) { break; } 
-				if((op & 0xF0FF) == 0xF04E) { break; }
-				if((op & 0xF0FF) == 0xF08E) { break; }
-				newrop = "%04x.".format(op) ~ newrop;
+				
+				rops[newrop] = cast(uint)i;
+				//writeln(i);
 			}
-			
-			rops[newrop] = cast(uint)i;
-			//writeln(i);
 		}
+		writeln(to!string(rops).replace(" ","\n"));
 	}
-	writeln(to!string(rops).replace(" ","\n"));
 	romfile.close();
 	Reset();
 	

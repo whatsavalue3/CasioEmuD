@@ -426,7 +426,14 @@ void main()
 	glfwSwapInterval(1);
 	loadOpenGL();
 	loadExtendedGLSymbol(cast(void**)&glBitmap, "glBitmap");
-	writeln(glBitmap);
+	if(glBitmap == null)
+	{
+		loadBaseGLSymbol(cast(void**)&glBitmap, "glBitmap");
+	}
+	if(glBitmap == null)
+	{
+		writeln("couldnt find glBitmap in your system.");
+	}
 	mainpanel = new Window();
 	
 	app = new MainApp(mainpanel);

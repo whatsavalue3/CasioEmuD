@@ -594,6 +594,7 @@ void ShiftLeft(int param)
 	if (data_type_2 > 3)
 		return;
 	if (data_type_2 == 0) {
+		//writeln("$%x <<= 4 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x0B; offset++) {
 			ushort addr = CalcAddr(data_type_1, cast(ubyte)(0x0B - offset));
 			ubyte val1 = Read(cast(ushort)addr);
@@ -610,6 +611,7 @@ void ShiftLeft(int param)
 		Write(cast(ushort)addr, cast(ubyte)((val1 << 4) | (val2 >> 4)));
 	}
 	else if (data_type_2 == 1) {
+		//writeln("$%x <<= 8 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x0B; offset++) {
 			ushort addr = CalcAddr(data_type_1, cast(ubyte)(0x0B - offset));
 			ubyte val = Read(cast(ushort)(addr - 1));
@@ -624,6 +626,7 @@ void ShiftLeft(int param)
 		Write(cast(ushort)addr, val);
 	}
 	else if (data_type_2 == 2) {
+		//writeln("$%x <<= 16 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x0A; offset++) {
 			ushort addr = CalcAddr(data_type_1, cast(ubyte)(0x09 - offset));
 			ubyte val = Read(cast(ushort)addr);
@@ -640,6 +643,7 @@ void ShiftLeft(int param)
 		}
 	}
 	else if (data_type_2 == 3) {
+		//writeln("$%x <<= 32 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x08; offset++) {
 			ushort addr = CalcAddr(data_type_1, cast(ubyte)(0x07 - offset));
 			ubyte val = Read(cast(ushort)addr);
@@ -662,6 +666,7 @@ void ShiftRight(int param)
 	if (data_type_2 > 3)
 		return;
 	if (data_type_2 == 0) {
+		//writeln("$%x >>>= 4 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x0B; offset++) {
 			ushort addr = CalcAddr(data_type_1, offset);
 			ubyte val1 = Read(cast(ushort)addr);
@@ -679,6 +684,7 @@ void ShiftRight(int param)
 		Write(cast(ushort)addr, cast(ubyte)((val2 << 4) | (val1 >> 4)));
 	}
 	else if (data_type_2 == 1) {
+		//writeln("$%x >>>= 8 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x0B; offset++) {
 			ushort addr = CalcAddr(data_type_1, offset);
 			ubyte val = Read(cast(ushort)(addr + 1));
@@ -693,6 +699,7 @@ void ShiftRight(int param)
 		Write(cast(ushort)addr, val);
 	}
 	else if (data_type_2 == 2) {
+		//writeln("$%x >>>= 16 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x0A; offset++) {
 			ushort addr = CalcAddr(data_type_1, offset);
 			ubyte val = Read(cast(ushort)(addr + 2));
@@ -709,6 +716,7 @@ void ShiftRight(int param)
 		}
 	}
 	else if (data_type_2 == 3) {
+		//writeln("$%x >>>= 32 | %x".format(CalcAddr(data_type_1,0),param));
 		for (ubyte offset = 0; offset < 0x08; offset++) {
 			ushort addr = CalcAddr(data_type_1, offset);
 			ubyte val = Read(cast(ushort)(addr + 4));
@@ -794,7 +802,8 @@ uint Calculate(uint tmp, uint val1, uint val2, int flag) {
 }
 
 void DataOperate() {
-	//writeln(emu.data[0x7480..0x7500]);
+	////writeln(emu.data[0x7480..0x7500]);
+	////writeln("DataOperate %x %x %x %x %x %x %x %x %x".format(data_mode,param1,param2,param3,param4,data_F402_copy,data_type_1,data_type_2,data_operator));
 	if (param1 == 1 && param4 == 0 && data_F402_copy != 0) {
 		bool storeresults = false;
 		if (data_operator == 1 || data_operator == 2)
@@ -826,8 +835,10 @@ void DataOperate() {
 			}
 			if (storeresults) {
 				ushort storeaddr = CalcAddr(data_type_1, offset);
+				//writeln("2:  tmp:%x|$%x = %x(%x) %s %x(%x) = %x    ".format(tmp,storeaddr,addr1,val1,flag ? "-" : "+",addr2,val2,res));
 				Write(cast(ushort)storeaddr, cast(ubyte)(res & 0xFF));
 				Write(cast(ushort)(storeaddr + 1), cast(ubyte)((res >> 8) & 0xFF));
+				
 			}
 			offset += 2;
 			addr1 = CalcAddr(data_type_1, offset);
@@ -852,6 +863,7 @@ void DataOperate() {
 					Write(cast(ushort)(storeaddr + 1), 0);
 				}
 				else {
+					//writeln("2:  tmp:%x|$%x = %x(%x) %s %x(%x) = %x    ".format(tmp,storeaddr,addr1,val1,flag ? "-" : "+",addr2,val2,res));
 					Write(cast(ushort)storeaddr, cast(ubyte)(res & 0xFF));
 					Write(cast(ushort)(storeaddr + 1), cast(ubyte)((res >> 8) & 0xFF));
 				}
@@ -892,6 +904,7 @@ void DataOperate() {
 		}
 		else {
 			Write(cast(ushort)addr, data_type_2);
+			//writeln("$%x = %x".format(addr,data_type_2));
 		}
 		break;
 	case 3:
@@ -902,6 +915,7 @@ void DataOperate() {
 			val = Read(cast(ushort)addr);
 			addr = CalcAddr(data_type_1, offset);
 			Write(cast(ushort)addr, val);
+			//writeln("$%x = %x(%x)".format(addr,CalcAddr(data_type_2, offset),val));
 		}
 		break;
 	case 4:
@@ -970,6 +984,7 @@ void DataOperate() {
 		} while (offset <= 0x0B);
 		data_F414 = start;
 		data_F415 = end;
+		////writeln("start:%x  end:%x".format(start,end));
 	}
 	if (data_F400 != 0 && (data_F400 & 0x08) == 0)
 		return;
@@ -980,6 +995,7 @@ void DataOperate() {
 
 void Tick()
 {
+	
 	if (F402_write) {
 		if (data_F402 == 0)
 			data_F402 = 1;
@@ -994,6 +1010,12 @@ void Tick()
 		return;
 	}
 	if (F400_write || F405_write) {
+		////writeln("%x %x %x %x %x %x %x".format(data_F400, data_F402, data_F404, data_F405, data_F410, data_F414, data_F415));
+		//writeln("%(%02x %)".format(emu.data[0x7480..0x74a0]));
+		//writeln("%(%02x %)".format(emu.data[0x74a0..0x74c0]));
+		//writeln("%(%02x %)".format(emu.data[0x74c0..0x74e0]));
+		//writeln("%(%02x %)".format(emu.data[0x74e0..0x7500]));
+		//writeln("====");
 		data_mode = 0x3F;
 		data_a = 0;
 		data_b = 0;
@@ -1018,6 +1040,7 @@ void Tick()
 			data_F405 = 0;
 			data_mode = 0xFF;
 		}
+		////writeln("Tick %x %x %x %x %x %x %x %x %x".format(data_mode,param1,param2,param3,param4,data_F402_copy,data_type_1,data_type_2,data_operator));
 		do {
 			if (param1 == 0 && data_mode == 0x3F) {
 				data_repeat_flag = 0;

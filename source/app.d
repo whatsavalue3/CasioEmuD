@@ -29,6 +29,10 @@ else version(ES)
 {
 	string currom = "rom018_emu.bin";
 }
+else version(CWX)
+{
+	string currom = "cwx.bin";
+}
 
 extern(C) @nogc nothrow void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -88,14 +92,23 @@ class Display : Panel
 			glRasterPos2i(0,0);
 			for(int i = 0; i < 64; i++)
 			{
-				glBitmap(256,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
+				glBitmap(192,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
 			}
 			glBlendColor4ub(0,0,0,128);
 			glRasterPos2i(0,0);
 			dp = emu.display.ptr + 0x800;
 			for(int i = 0; i < 64; i++)
 			{
-				glBitmap(256,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
+				glBitmap(192,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
+			}
+		}
+		version(CWX)
+		{
+			glBlendColor4ub(0,0,0,255);
+			glRasterPos2i(0,0);
+			for(int i = 0; i < 64; i++)
+			{
+				glBitmap(192,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
 			}
 		}
 		version(ES)
@@ -214,7 +227,7 @@ else version(SOLARII)
 	"     ","     ","     ","  0  ","  .  "," EXP ","  =  ","  M+ ",
 	"     ","     ","     ","     ","     ","     ","     ","     "
 	];
-	const string[13] digitflags = ["0","S","M","3","4","5","M","K","DEG","RAD","GRA","11","12"];
+	
 } 
 else version(ES)
 {
@@ -229,7 +242,20 @@ else version(ES)
 	"     ","     ","     ","     ","     ","     ","     ","     "
 	];
 }
-
+else version(CWX)
+{
+	const string[64] labels = [
+	"SHIFT"," CALC"," frac"," (-) "," RCL ","  7   ","  4   ","  1   ",
+	"ALPHA","INTEG"," sqrt"," dms "," ENG ","  8   ","  5   ","  2   ",
+	"^"," <"," x^2 "," hyp ","  (  ","  9   ","  6   ","  3   ",
+	"> ","v"," x^( "," sin ","  )  "," DEL  ","  *   ","  +   ",
+	" MODE"," x^-1"," log "," cos "," S<>D","  AC  ","  /   ","  -   ",
+	"     ","log_n","  ln "," tan ","  M+ ","     ","     ","     ",
+	"     ","     ","     ","  0   ","  .   ","*10^x "," Ans  ","  =   ",
+	"     ","     ","     ","     ","     ","     ","     ","     "
+	];
+}
+const string[13] digitflags = ["0","S","M","3","4","5","M","K","DEG","RAD","GRA","11","12"];
 
 
 
@@ -402,6 +428,7 @@ class MainApp : Panel
 		sav.rawRead(data);
 		sav.rawRead(display);
 		sav.close();
+		emu.ULTRAHALT = false;
 	}
 	
 	void PressON()
@@ -477,8 +504,12 @@ MainApp app;
 
 
 
-void main()
+void main(string[] args)
 {
+	if(args.length > 1)
+	{
+		currom = args[1];
+	}
 	glfwSetErrorCallback(&errorCallback);
 	glfwInit();
 	

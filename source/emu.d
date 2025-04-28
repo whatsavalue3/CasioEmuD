@@ -98,6 +98,7 @@ ubyte ReadByte(uint of)
 	//{
 	//	writeln("@","%x".format(PC-2),": %x".format(of));
 	//}
+	//writeln("@","%x".format(PC-2),": %x".format(of));
 	if(seg == 0)
 	{
 		version(EMUKB)
@@ -282,6 +283,7 @@ void WriteByte(uint of, ubyte b)
 		if((addr&0xf800) == 0xf800)
 		{
 			//writeln(addr&0x7ff, " ", b);
+			//writeln((addr&0x7ff) | (cast(ushort)(ReadByte(0xF037)&0x4)<<9));
 			display[(addr&0x7ff) | (cast(ushort)(ReadByte(0xF037)&0x4)<<9)] = b;
 			//writeln("@","%x".format(PC-2),": %x = %x".format(of,b));
 		}
@@ -952,7 +954,7 @@ void Execute(ushort op)
 		return;
 	}
 	//
-
+	//writeln("@","%x:%x".format(CSR,PC-2),": %x ".format(op),REGS);
 	//writeln("@","%x:%x".format(CSR,PC-2),": %x ".format(op),REGS);
 	
 	if(p0 == 0x0C)
@@ -1779,10 +1781,12 @@ void Fuzz()
 		{
 			*(cast(ulong*)(buttons.ptr)) = 0;
 			buttons[(currand>>13)&0x7] = 1<<((currand>>34)&0x7);
-			//if(startrand == startseed)
-			//{
-//				writeln("%x BUTTON:     ".format(currand),i,"    ",(currand>>13)&0x7," ",(currand>>34)&0x7," ",buttonlabels[((((currand>>13)&0x7))<<3)|(7-((currand>>34)&0x7))]);
-	//		}
+			/*
+			if(startrand == startseed)
+			{
+				writeln("%x BUTTON:     ".format(currand),i,"    ",(currand>>13)&0x7," ",(currand>>34)&0x7," ",buttonlabels[((((currand>>13)&0x7))<<3)|(7-((currand>>34)&0x7))]);
+			}
+			*/
 			currand ^= 0b1010101101010110101011010101101100011010101101010110101011010101;
 			currand *= 0b101110010000110001;
 			currand ^= 0b1101101010011010110110001101010101010110101011010111010101101001;

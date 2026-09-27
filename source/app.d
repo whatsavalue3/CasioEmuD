@@ -1,11 +1,13 @@
 import std.file;
 import std.path;
 import std.stdio;
-import glfw3.api;
+import bindbc.glfw;
 import dgui;
 import bindbc.opengl.util;
 import emu;
-
+import hexedit;
+import std.format;
+import fuzz;
 
 extern(C) @nogc nothrow void errorCallback(int error, const(char)* description) {
 	import core.stdc.stdio;
@@ -13,10 +15,12 @@ extern(C) @nogc nothrow void errorCallback(int error, const(char)* description) 
 }
 
 bool mouse_pending = false;
+bool mouse_scroll_pending = false;
 int mouse_button = 0;
 int mouse_action = 0;
 int mouse_x = 0;
 int mouse_y = 0;
+double mouse_scroll = 0;
 version(SOLARII)
 {
 	string currom = "solarii_emu.bin";
@@ -32,6 +36,16 @@ else version(ES)
 else version(CWX)
 {
 	string currom = "cwx.bin";
+}
+
+extern(C) @nogc nothrow void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	double dxpos, dypos;
+	glfwGetCursorPos(window, &dxpos, &dypos);
+	mouse_x = cast(int)dxpos;
+	mouse_y = cast(int)dypos;
+	mouse_scroll = yoffset;
+	mouse_scroll_pending = true;
 }
 
 extern(C) @nogc nothrow void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
@@ -263,6 +277,9 @@ const string[13] digitflags = ["0","S","M","3","4","5","M","K","DEG","RAD","GRA"
 
 class MainApp : Panel
 {
+	HexEdit hed;
+	Button fuck;
+	Button fuz;
 	this(Panel parent)
 	{
 		super(parent);
@@ -274,10 +291,27 @@ class MainApp : Panel
 		}
 		else
 		{
+			hed = new HexEdit(content);
+			hed.x = 720;
+			hed.y = 8;
 			ON = new Button(content,"ON");
 			ON.callback = &PressON;
 			ON.x = 256;
 			ON.y = 4;
+			/*
+			fuck = new Button(content,"Fuck");
+			fuck.callback = &PressFuck;
+			fuck.x = 256;
+			fuck.y = 38;
+			fuz = new Button(content,"Fuzz");
+			fuz.callback = &PressFuzz;
+			fuz.x = 256;
+			fuz.y = 38+16;
+			ANB = new Button(content,"an");
+			ANB.callback = &AnButton;
+			ANB.x = 256;
+			ANB.y = 20;
+			*/
 			version(ES)
 			{
 				for(int i = 2; i <= 4; i++)
@@ -394,10 +428,16 @@ class MainApp : Panel
 		
 	}
 	
+	void PressFuzz()
+	{
+		ExecuteRandomPayload();
+	}
+	
 	void LoadRom(Button b)
 	{
 		currom = b.text;
 		emu.Init(currom);
+		emu.Reset();
 	}
 	
 	void Save()
@@ -413,11 +453,13 @@ class MainApp : Panel
 		sav.rawWrite(emu.REGS);
 		sav.rawWrite(data);
 		sav.rawWrite(display);
+		sav.rawWrite([emu.CSR]);
 		sav.close();
 	}
-	void Load()
+	
+	void LoadSav(string savname)
 	{
-		auto sav = File(SaveName.text ~ ".sav","rb");
+		auto sav = File(savname,"rb");
 		emu.PC = sav.rawRead([emu.PC])[0];
 		emu.SP = sav.rawRead([emu.SP])[0];
 		emu.PSW = sav.rawRead([emu.PSW])[0];
@@ -428,8 +470,15 @@ class MainApp : Panel
 		sav.rawRead(emu.REGS);
 		sav.rawRead(data);
 		sav.rawRead(display);
+		emu.CSR = sav.rawRead([emu.CSR])[0];
 		sav.close();
 		emu.ULTRAHALT = false;
+		emu.HALT = false;
+	}
+	
+	void Load()
+	{
+		LoadSav(SaveName.text ~ ".sav");
 	}
 	
 	void PressON()
@@ -455,11 +504,79 @@ class MainApp : Panel
 		}
 	}
 	
+	void PressFuck()
+	{
+		int i = 25;
+		emu.buttons[i>>3] |= 1<<(7-(i&0x7));
+		writeln("BUTTON: ",i>>3," ",7-(i&0x7));
+		
+		emu.Raise(5);
+		foreach(_c; 0..6000)
+		{
+			if(emu.HALT)
+			{
+				ushort counter = ReadWord(0xf022);
+				writeln("L",__LINE__, ": ", counter, " - ", ReadWord(0xf020));
+				if(counter >= ReadWord(0xf020))
+				{
+					counter -= ReadWord(0xf020);
+					Raise(9);
+				}
+				else
+				{
+					WriteWord(cast(uint)0xf022,ReadWord(0xf020));
+					counter = 0;
+					Raise(9);
+				}
+				WriteWord(cast(uint)0xf022,cast(ushort)(counter+1));
+			}
+			else
+			{
+				emu.Tick();
+			}
+		}
+		
+		emu.buttons[i>>3] &= ~(1<<(7-(i&0x7)));
+		emu.Raise(5);
+		
+		foreach(_c; 0..4000)
+		{
+			if(emu.HALT)
+			{
+				ushort counter = ReadWord(0xf022);
+				writeln("L",__LINE__, ": ", counter, " - ", ReadWord(0xf020));
+				if(counter >= ReadWord(0xf020))
+				{
+					counter -= ReadWord(0xf020);
+					Raise(9);
+				}
+				else
+				{
+					WriteWord(cast(uint)0xf022,ReadWord(0xf020));
+					counter = 0;
+					Raise(9);
+				}
+				WriteWord(cast(uint)0xf022,cast(ushort)(counter+1));
+			}
+			else
+			{
+				emu.Tick();
+			}
+		}
+		
+		PressON();
+	}
+	
+	void AnButton()
+	{
+		emu.WriteWord(0x9268,0x20fd);
+	}
+	
 	void PressButton(Button b)
 	{
 		int i = b.userdata;
 		emu.buttons[i>>3] |= 1<<(7-(i&0x7));
-		//writeln("BUTTON: ",i>>3," ",7-(i&0x7));
+		writeln("BUTTON: ",i>>3," ",7-(i&0x7));
 		
 		emu.Raise(5);
 	}
@@ -469,7 +586,7 @@ class MainApp : Panel
 		int i = b.userdata;
 		emu.buttons[i>>3] &= ~(1<<(7-(i&0x7)));
 		
-		emu.Raise(5);
+		//emu.Raise(5);
 	}
 	
 	override void PerformLayout()
@@ -480,6 +597,8 @@ class MainApp : Panel
 		content.y = 4;
 		screen.x = 4;
 		screen.y = 4;
+		hed.width = content.width - hed.x;
+		hed.height = content.height - hed.y;
 	}
 	
 	void SetContent(Panel newcontent)
@@ -494,6 +613,7 @@ class MainApp : Panel
 	Display screen;
 	Button[] buttons;
 	Button ON;
+	Button ANB;
 	Button[] roms;
 	Button SaveButton;
 	Button LoadButton;
@@ -507,6 +627,10 @@ MainApp app;
 
 void main(string[] args)
 {
+	version(Windows)
+	{
+		loadGLFW();
+	}
 	if(args.length > 1)
 	{
 		currom = args[1];
@@ -523,6 +647,7 @@ void main(string[] args)
 	glfwSetMouseButtonCallback(window, &mouse_button_callback);
 	glfwSetCharCallback(window, &text_callback);
 	glfwSetKeyCallback(window, &key_callback);
+	glfwSetScrollCallback(window, &scroll_callback);
 	
 	glfwMakeContextCurrent(window);
 	
@@ -544,7 +669,7 @@ void main(string[] args)
 	mainpanel.inner.destroy();
 	mainpanel.inner = app;
 	
-	
+	ushort twobyte = 0xffff;
 	
 	emu.Init(currom);
 	while (!glfwWindowShouldClose(window))
@@ -557,6 +682,12 @@ void main(string[] args)
 			mouse_pending = false;
 		}
 		
+		if(mouse_scroll_pending)
+		{
+			DGUI_HandleScroll(mouse_x,mouse_y,mouse_scroll);
+			mouse_scroll_pending = false;
+		}
+		
 		if(key_pending)
 		{
 			DGUI_HandleKey(key_chr);
@@ -565,7 +696,46 @@ void main(string[] args)
 		
 		version(FUZZ)
 		{
-			emu.Fuzz();
+			foreach(i;0..100)
+			{
+				emu.Fuzz();
+			}
+		}
+		else version(ANFIND)
+		{
+			app.LoadSav("anfind.sav");
+			emu.WriteByte(0x9268,twobyte>>8);
+			emu.WriteByte(0x9269,twobyte&0xff);
+			emu.WriteWord(0x926a,0x6767);
+			emu.WriteWord(0x926c,0x6767);
+			emu.WriteWord(0x926e,0x6767);
+			emu.WriteInt(0x9270,0x67676767);
+			emu.WriteInt(0x9274,0x67676767);
+			emu.WriteInt(0x9278,0x67676767);
+			emu.WriteInt(0x927c,0x67676767);
+			emu.buttons[6] |= 1;
+			emu.Raise(5);
+			emu.HALT = false;
+			emu.ULTRAHALT = false;
+			foreach(i;0..500960)
+			{
+				emu.Tick();
+				if(emu.SP == 0x6767)
+				{
+					writeln(twobyte);
+					break;
+				}
+				if(emu.ULTRAHALT)
+				{
+					break;
+				}
+				if(emu.CSR == 3 && emu.PC == 0xeee2)
+				{
+					break;
+				}
+				emu.HALT = false;
+			}
+			twobyte -= 1;
 		}
 		else version(TESTGLITCH)
 		{

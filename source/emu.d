@@ -30,13 +30,66 @@ version(ES)
 }
 version(CWX)
 {
+	//version = EMUKB;
 	version = OLDKB;
 }
+
+struct Spot
+{
+	uint data;
+	
+	ubyte opIndex(size_t index)
+	{
+		return cast(ubyte)(data>>(index<<3));
+	}
+	
+	ubyte opIndexUnary(string s: "--")(size_t index)
+	{
+		ubyte val = this[index];
+		if(val == 0)
+		{
+			return 0;
+		}
+		this[index] = cast(ubyte)(val-1);
+		return val;
+	}
+	
+	ubyte opIndexAssign(ubyte val, size_t index)
+	{
+		data &= ~(0xff<<(index<<3));
+		data |= cast(uint)(val)<<(index<<3);
+		
+		return val;
+	}
+}
+
+struct Spots
+{
+	Spot[uint] spots;
+	
+	alias this = spots;
+	
+	ref Spot opIndex(uint index)
+	{
+		if(index !in spots)
+		{
+			spots[index] = Spot(0);
+		}
+		return spots[index];
+	}
+	
+	void remove(uint v)
+	{
+		spots.remove(v);
+	}
+}
+
 
 ubyte[0x8000] data;
 ubyte[0x8000] cwiiram;
 ubyte[0x80000] rom;
 ubyte[0x1000] display;
+Spots SPSPOTS;
 ubyte[8] buttons;
 uint PC = 0;
 ubyte CSR = 0;
@@ -90,10 +143,14 @@ void Raise(ubyte l, uint indx)
 	PC = ReadCode(cast(uint)(indx << 1));
 }
 
-ubyte ReadByte(uint of)
+ubyte ReadByte(uint of, bool track = true)
 {
 	ubyte seg = cast(ubyte)(of >>> 16);
 	ushort addr = cast(ushort)of;
+	if(track)
+	{
+		SPSPOTS[of][1] = 255;
+	}
 	//if(((addr&0xf02c) != 0xf020 && addr != 0xF037) && ((addr&0xF000) != 0xE000))
 	//{
 	//	writeln("@","%x".format(PC-2),": %x".format(of));
@@ -113,6 +170,8 @@ ubyte ReadByte(uint of)
 				{
 					if(buttons[i])
 					{
+						//writeln("ko: %x %x".format(PC-2, 1<<i));
+						//HALT = true;
 						return cast(ubyte)(1<<i);
 					}
 				}
@@ -125,6 +184,8 @@ ubyte ReadByte(uint of)
 				{
 					ki |= buttons[i];
 				}
+				//writeln("ki: %x %x".format(PC-2, ki));
+				//HALT = true;
 				return ki;
 			}
 		}
@@ -196,6 +257,7 @@ ubyte ReadByte(uint of)
 	{
 		if(seg == 4)
 		{
+			writeln("%x".format(addr));
 			if(addr == 0x8E02)
 			{
 				for(int i = 0; i < 8; i++)
@@ -218,7 +280,7 @@ ubyte ReadByte(uint of)
 			}
 			if(addr >= 0x8000)
 			{
-				return data[addr&0x7fff];
+				return cwiiram[addr&0x7fff];
 			}
 			
 		}
@@ -255,6 +317,7 @@ ushort ReadCode(uint of)
 	{
 		return 0xCEFF;
 	}
+	SPSPOTS[of][2] = 255;
 	return cast(ushort)((cast(ushort)(rom[indx | 1]) << 8)) | cast(ushort)(rom[indx]);
 }
 
@@ -273,6 +336,7 @@ void WriteByte(uint of, ubyte b)
 {
 	ubyte seg = cast(ubyte)(of >>> 16);
 	ushort addr = cast(ushort)of;
+	SPSPOTS[of][0] = 255;
 	//writeln("@","%x".format(PC-2),": %x = %x    %(%02x %)".format(of,b,REGS));
 	//if((addr&0xf800) != 0xf800 && (addr&0xf02c) != 0xf020 && addr != 0xF037 && ((addr&0xF000) != 0xE000))
 	//{
@@ -285,7 +349,7 @@ void WriteByte(uint of, ubyte b)
 			//writeln(addr&0x7ff, " ", b);
 			//writeln((addr&0x7ff) | (cast(ushort)(ReadByte(0xF037)&0x4)<<9));
 			display[(addr&0x7ff) | (cast(ushort)(ReadByte(0xF037)&0x4)<<9)] = b;
-			//writeln("@","%x".format(PC-2),": %x = %x".format(of,b));
+			//writeln("@","%x:%x".format(CSR,PC-2),": %x = %x".format(of,b));
 		}
 		else if((addr&0x8000) != 0)
 		{
@@ -293,8 +357,8 @@ void WriteByte(uint of, ubyte b)
 		}
 		else
 		{
-			writeln("BAD @","%x.%x".format(CSR,PC),": %x = %x".format(of,b),"    %x".format(SP));
-			ULTRAHALT = true;
+			writeln("BAD @","%x.%x".format(CSR,PC),": %x = %x".format(of,b),"    %x: %(%02x %)".format(SP,data[(SP&0x7fff)-32..(SP&0x7fff)+32]));
+			//ULTRAHALT = true;
 		}
 		if((addr&0xfc00) == 0xf400)
 		{
@@ -335,8 +399,8 @@ void WriteByte(uint of, ubyte b)
 	}
 	else if(seg == 8)
 	{
-		writeln("@","%x".format(PC-2),": Invalid Write 8:%x = %x".format(of,b));
-		ULTRAHALT = true;
+		writeln("@","%x".format(PC-2),": Write 8:%x = %x".format(of,b));
+		//ULTRAHALT = true;
 		if((addr&0x8000) != 0)
 		{
 			if(addr < 0x9000)
@@ -357,9 +421,10 @@ void WriteByte(uint of, ubyte b)
 	}
 	else if(seg == 4)
 	{
+		writeln("@","%x".format(PC-2),": Write 4:%x = %x".format(of,b));
 		if(addr >= 0x8000)
 		{
-			data[addr&0x7fff] = b;
+			cwiiram[addr&0x7fff] = b;
 		}
 	}
 	else
@@ -385,7 +450,14 @@ void WriteInt(uint of, uint val)
 ushort Fetch()
 {
 	PC &= 0xfffe;
+version(ES)
+{
+	ushort op = ReadCode(cast(uint)((CSR&1)<<16) | cast(uint)PC);
+}
+else
+{
 	ushort op = ReadCode(cast(uint)(CSR<<16) | cast(uint)PC);
+}
 	PC += 2;
 	return op;
 }
@@ -950,13 +1022,13 @@ void Execute(ushort op)
 	if(SP < 0x8000)
 	{
 		ULTRAHALT = true;
-		writeln("STACK OUT OF BOUNDS: %x".format(SP));
+		writeln("STACK OUT OF BOUNDS: SP=%04x   PC=%04x,  LR=%04x".format(SP,PC,ELR[PSW&0x3]));
 		return;
 	}
 	//
 	//writeln("@","%x:%x".format(CSR,PC-2),": %x ".format(op),REGS);
 	//writeln("@","%x:%x".format(CSR,PC-2),": %x ".format(op),REGS);
-	
+	//writeln("@","%x:%x".format(CSR,PC-2),": %x ".format(op));
 	if(p0 == 0x0C)
 	{
 		if(BranchFlags(p1))
@@ -1058,7 +1130,7 @@ void Execute(ushort op)
 			if((p3 & 1) == 0x01)
 			{
 				ELR[PSW&0x3] = cast(ushort)PC;
-				ECSR[PSW&0x3] = CSR;
+				ECSR[PSW&0x3] = CSR&0x7;
 			}
 			PC = cadr;
 			CSR = p1;
@@ -1067,7 +1139,7 @@ void Execute(ushort op)
 		if(op == 0xFE1F)
 		{
 			PC = cast(uint)ELR[PSW&0x3];
-			CSR = ECSR[PSW&0x3];
+			CSR = ECSR[PSW&0x3]&0x7;
 			//writeln("PC %x:%x".format(CSR,PC));
 			return;
 		}
@@ -1210,9 +1282,9 @@ void Execute(ushort op)
 			FLAG_DSR = true;
 			return;
 		}
-		if((op & 0xFF1E) == 0xF002)
+		if((op & 0xF00E) == 0xF002)
 		{
-			ushort cadr = GetERN(p2);
+			ushort cadr = GetERN(p2&0xe);
 			if((p3 & 1) == 0x01)
 			{
 				ELR[0] = cast(ushort)PC;
@@ -1464,6 +1536,7 @@ void Execute(ushort op)
 		if((op & 0xFF00) == 0xE100)
 		{
 			SP += cast(byte)p23;
+			SP &= 0xfffe;
 			return;
 		}
 		if(op == 0xEB7F)
@@ -1519,7 +1592,7 @@ void Execute(ushort op)
 		}
 		if((op & 0xFF1F) == 0xA10A)
 		{
-			SP = GetERN(p2);
+			SP = GetERN(p2)&0xfffe;
 			return;
 		}
 		if((op & 0xF11F) == 0xA008)
@@ -1712,6 +1785,13 @@ void RunFrame()
 			for(int j = 0; j < 1024; j++)
 			{
 				Tick();
+				/*
+				if(SP < MINSP)
+				{
+					writeln("startrand ", startrand, " sp:",SP);
+					MINSP = SP;
+				}
+				*/
 				instructioncounter++;
 				//if(lastSP != SP)
 				//{
@@ -1735,41 +1815,91 @@ void RunFrame()
 //ulong currand = 822933974911875079;
 //ulong currand = 1000;
 //const startseed = 228474987015621010;
-const ulong startseed = 228474987015621010;
+//const ulong startseed = 228474987015621010;
+//const ulong startseed = 5538186090977776864;
+//const ulong startseed = 5188362954971711886;
+//const ulong startseed = 1218037907583144560;
 //ulong currand = 5741033577064303640;
+//const ulong startseed = 6528105360858309872;
+const ulong startseed = 10101011;
 ulong currand = startseed;
 
-int HALTCOUNT = 0;
-int MINHALTCOUNT = 0;
+//int HALTCOUNT = 299173;
+//int MINHALTCOUNT = 299173;
+int HALTCOUNT = 5;
+int MINHALTCOUNT = 5;
 int HALTEDFOR = 0;
 ulong startrand = startseed;
 //ulong startrand = 5741033577064303640;
-
-const string[64] buttonlabels = [
-	"     ","     ","SHIFT","a b/c"," +/- ","  7  ","  4  ","  1  ",
-	"     ","     ","MODE ","*' ''","  >  ","  8  ","  5  ","  2  ",
-	"     ","     "," x^2 "," hyp ","((---","  9  ","  6  ","  3  ",
-	"     ","     "," log "," sin ","---))","  C  ","  *  ","  +  ",
-	"     ","     ","  ln "," cos "," x^y ","  AC ","  /  ","  -  ",
-	"     ","     ","     "," tan ","  MR ","     ","     ","     ",
-	"     ","     ","     ","  0  ","  .  "," EXP ","  =  ","  M+ ",
-	"     ","     ","     ","     ","     ","     ","     ","     "
+version(ES)
+{
+	const string[64] buttonlabels = [
+	"SHIFT"," CALC"," frac"," (-) "," RCL ","  7   ","  4   ","  1   ",
+	"ALPHA","INTEG"," sqrt"," dms "," ENG ","  8   ","  5   ","  2   ",
+	"^"," <"," x^2 "," hyp ","  (  ","  9   ","  6   ","  3   ",
+	"> ","v"," x^( "," sin ","  )  "," DEL  ","  *   ","  +   ",
+	" MODE"," x^-1"," log "," cos "," S<>D","  AC  ","  /   ","  -   ",
+	"","log_n","  ln "," tan ","  M+ ","","","",
+	"","","","  0   ","  .   ","*10^x "," Ans  ","  =   ",
+	"","","","","","","",""
 	];
-	
-ushort MINSP = 0xffff;
+}
+else version(SOLARII)
+{
+	const string[64] buttonlabels = [
+		"     ","     ","SHIFT","a b/c"," +/- ","  7  ","  4  ","  1  ",
+		"     ","     ","MODE ","*' ''","  >  ","  8  ","  5  ","  2  ",
+		"     ","     "," x^2 "," hyp ","((---","  9  ","  6  ","  3  ",
+		"     ","     "," log "," sin ","---))","  C  ","  *  ","  +  ",
+		"     ","     ","  ln "," cos "," x^y ","  AC ","  /  ","  -  ",
+		"     ","     ","     "," tan ","  MR ","     ","     ","     ",
+		"     ","     ","     ","  0  ","  .  "," EXP ","  =  ","  M+ ",
+		"     ","     ","     ","     ","     ","     ","     ","     "
+		];
+}
+else
+{
+	const string[64] buttonlabels = [
 
+		];
+}
+
+//ushort MINSP = 35526;
+ushort MINSP = 0xffff;
+int buttonpresses = 0;
+//ubyte[24] Ki = [0,4,1];
+//ubyte[24] Ko = [0,7,2];
+//bool switched = false;
+//ulong prevstartseed = 6528105360858309872;
 void Fuzz()
 {
-	if(ULTRAHALT)
+	if(ULTRAHALT)// || MINSP == 35498)
 	{
 		return;
 	}
-	*(cast(ulong*)(buttons.ptr)) = 0;
-	Reset();
-	int buttonpresses = 0;
 	
+	//if(buttonpresses >= 24)
+	{
+		
+		//if(switched)
+		//{
+		//	prevstartseed = currand;
+		//	currand = 8511622880778331373;
+		//}
+		//else
+		//{
+		//	currand = prevstartseed;
+		//}
+		*(cast(ulong*)(buttons.ptr)) = 0;
+		//Reset();
+		buttonpresses = 0;
+		//writeln("RESET");
+		//switched = !switched;
+	}
+
 	
-	while(buttonpresses < 10)
+	while(buttonpresses < 30)
+	//if(switched)
 	{
 		Tick();
 		if(SP < MINSP)
@@ -1787,10 +1917,17 @@ void Fuzz()
 				writeln("%x BUTTON:     ".format(currand),i,"    ",(currand>>13)&0x7," ",(currand>>34)&0x7," ",buttonlabels[((((currand>>13)&0x7))<<3)|(7-((currand>>34)&0x7))]);
 			}
 			*/
-			currand ^= 0b1010101101010110101011010101101100011010101101010110101011010101;
-			currand *= 0b101110010000110001;
-			currand ^= 0b1101101010011010110110001101010101010110101011010111010101101001;
-			currand += 0b1001001010111100000011000110100010000001000010;
+			do
+			{
+				currand ^= 0b1010101101010110101011010101101100011010101101010110101011010101;
+				currand *= 0b101110010000110001;
+				currand ^= 0b1101101010011010110110001101010101010110101011010111010101101000;
+				currand += 0b1001001010111100000011000110100010000001000010;
+				currand += currand>>58;
+			
+			} while (buttonlabels[((((currand>>13)&0x7))<<3)|(7-((currand>>34)&0x7))].length == 0);
+			//writeln("%ull BUTTON:     ".format(startrand),buttonpresses,"    ",(currand>>13)&0x7," ",(currand>>34)&0x7," ",buttonlabels[((((currand>>13)&0x7))<<3)|(7-((currand>>34)&0x7))]);
+			
 			Raise(5);
 			buttonpresses++;
 			HALTCOUNT = HALTEDFOR;
@@ -1812,7 +1949,53 @@ void Fuzz()
 			return;
 		}
 	}
+	/*
+	else
+	{
+		Tick();
+		if(HALT)
+		{
+			*(cast(ulong*)(buttons.ptr)) = 0;
+			buttons[Ki[buttonpresses]] = cast(ubyte)(1<<Ko[buttonpresses]);
+			writeln("%ull BUTTON:     ".format(startrand),buttonpresses,"    ",Ki[buttonpresses]," ",Ko[buttonpresses]," ",buttonlabels[(Ki[buttonpresses]<<3)|(7-Ko[buttonpresses])]);
+			Raise(5);
+			buttonpresses++;
+			
+		}
+	}
+	*/
+	/*
+	if(currand == 7312406069674133716)
+	{
+		currand = 2774493013116604928;
+	}
+	if(currand == 7403475696166306286)
+	{
+		currand = 8573877079615127948;
+	}
+	if(currand == 17010683086300415844)
+	{
+		currand = 8573877079615127948;
+		buttonpresses = 0;
+	}
+	*/
+	/*
+	if(currand == 2173228734303280752)
+	{
+		currand = 3800217626341052046;
+	}
+	if(currand == 1638909627381410573)
+	{
+		currand = 14370703782780833792;
+		buttonpresses = 24;
+	}
+	if(currand == 7025663714142369698)
+	{
+		currand = 8511622880778331373;
+	}
+	*/
 	startrand = currand;
+	
 }
 
 uint[string] rops;
@@ -1820,45 +2003,53 @@ uint[string] rops;
 void Init(string ROMPATH)
 {
 	rops.clear();
-	auto romfile = File(ROMPATH,"rb");
-	romfile.rawRead(rom);
-	version(ROPFIND)
+	
+	try
 	{
-		ulong s = romfile.size();
-		for(ulong i = 32; i < s; i += 2)
+		auto romfile = File(ROMPATH,"rb");
+		romfile.rawRead(rom);
+		version(ROPFIND)
 		{
-			ushort op = cast(ushort)(rom[i]|(rom[i+1]<<8));
-			if(((op&0xF0FF) == 0xF08E) || (op == 0xFE1F))
+			ulong s = romfile.size();
+			for(ulong i = 32; i < s; i += 2)
 			{
-				
-				string newrop = "%04x".format(op);
-				for(ulong j = 2; j < 32; j += 2)
+				ushort op = cast(ushort)(rom[i]|(rom[i+1]<<8));
+				if(((op&0xF0FF) == 0xF08E) || (op == 0xFE1F))
 				{
-					op = cast(ushort)(rom[i-j]|(rom[i-j+1]<<8));
-					if((op>>>12) == 0xC)
+					
+					string newrop = "%04x".format(op);
+					for(ulong j = 2; j < 32; j += 2)
 					{
-						break;
+						op = cast(ushort)(rom[i-j]|(rom[i-j+1]<<8));
+						if((op>>>12) == 0xC)
+						{
+							break;
+						}
+						if(op == 0xFE1F)
+						{
+							break;
+						}
+						if((op & 0xF0FE) == 0xF000) { break; }
+						if((op & 0xF0FF) == 0xF0CE) { break; }
+						if((op & 0xF1FF) == 0xF05E) { break; }
+						if((op & 0xF3FF) == 0xF06E) { break; }
+						if((op & 0xF7FF) == 0xF07E) { break; } 
+						if((op & 0xF0FF) == 0xF04E) { break; }
+						if((op & 0xF0FF) == 0xF08E) { break; }
+						newrop = "%04x.".format(op) ~ newrop;
 					}
-					if(op == 0xFE1F)
-					{
-						break;
-					}
-					if((op & 0xF0FE) == 0xF000) { break; }
-					if((op & 0xF0FF) == 0xF0CE) { break; }
-					if((op & 0xF1FF) == 0xF05E) { break; }
-					if((op & 0xF3FF) == 0xF06E) { break; }
-					if((op & 0xF7FF) == 0xF07E) { break; } 
-					if((op & 0xF0FF) == 0xF04E) { break; }
-					if((op & 0xF0FF) == 0xF08E) { break; }
-					newrop = "%04x.".format(op) ~ newrop;
+					
+					rops[newrop] = cast(uint)i;
 				}
-				
-				rops[newrop] = cast(uint)i;
 			}
+			writeln(to!string(rops).replace(" ","\n"));
 		}
-		writeln(to!string(rops).replace(" ","\n"));
+		romfile.close();
 	}
-	romfile.close();
+	catch(Exception e)
+	{
+		writeln("missing rom ", ROMPATH);
+	}
 	Reset();
 	
 	

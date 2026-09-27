@@ -5,7 +5,7 @@ import std.process;
 import std.array;
 import std.parallelism;
 import std.string;
-import glfw3.api;
+import bindbc.glfw;
 import std.conv;
 import std.ascii;
 
@@ -114,6 +114,11 @@ class Panel
 	}
 	
 	void Click(int cx, int cy, int button, int action)
+	{
+		
+	}
+	
+	void Scroll(int cx, int cy, double scroll)
 	{
 		
 	}
@@ -1113,7 +1118,7 @@ void DGUI_Draw(int width, int height)
 	mainpanel.InternalDraw();
 }
 
-bool DGUI_TraverseHitPanel(Panel panel, int x, int y, int button, int action)
+bool DGUI_TraverseHitPanel(Panel panel, int x, int y, int button, int action, double scroll = 0)
 {
 	if(panel.hidden)
 	{
@@ -1129,19 +1134,31 @@ bool DGUI_TraverseHitPanel(Panel panel, int x, int y, int button, int action)
 	y -= panel.offsety;
 	foreach(Panel child; panel.children)
 	{
-		if(DGUI_TraverseHitPanel(child,x,y,button,action))
+		if(DGUI_TraverseHitPanel(child,x,y,button,action,scroll))
 		{
 			return true;
 		}
 	}
 	DGUI_CaptureFocus(panel);
-	panel.Click(x, y, button, action);
+	if(scroll != 0)
+	{
+		panel.Scroll(x, y, scroll);
+	}
+	else
+	{
+		panel.Click(x, y, button, action);
+	}
 	return true;
 }
 
 void DGUI_HandleMouse(int x, int y, int button, int action)
 {
 	DGUI_TraverseHitPanel(mainpanel,x,y,button,action);
+}
+
+void DGUI_HandleScroll(int x, int y, double scroll)
+{
+	DGUI_TraverseHitPanel(mainpanel,x,y,0,0,scroll);
 }
 
 void DGUI_HandleKey(uint chr)
@@ -1154,9 +1171,9 @@ void DGUI_HandleKey(uint chr)
 
 static this()
 {
-	auto fontfile = File("unifont2","rb");
-	auto fontpixels = fontfile.rawRead(new byte[fontfile.size()]);
-	fontfile.close();
-	fontbuffer = fontpixels.ptr;
+	//auto fontfile = File("unifont2","rb");
+	//auto fontpixels = fontfile.rawRead(new byte[fontfile.size()]);
+	//fontfile.close();
+	fontbuffer = cast(byte*)import("unifont2").ptr;
 	
 }

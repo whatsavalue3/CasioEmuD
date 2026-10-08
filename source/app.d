@@ -96,26 +96,30 @@ class Display : Panel
 	
 	override void DrawBackground()
 	{
-		glBlendColor4ub(224,224,224,255);
+		glBlendColor4ub(255,255,255,255);
 		DGUI_FillRect(0,0,194,66);
 		glTranslatef(1,2,0);
 		ubyte* dp = emu.display.ptr;
 		version(CWII)
 		{
-			glBlendColor4ub(0,0,0,96);
+			dp = emu.display.ptr;
+			glBlendColor4ub(0,255,0,255);
+			glRasterPos2i(0,0);
+			for(int i = 0; i < 64; i++)
+			{
+				glBitmap(192,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
+			}
+			glBlendEquationSeparate(GL_FUNC_SUBTRACT,GL_FUNC_ADD);
+			glBlendFuncSeparate(GL_DST_COLOR,GL_ONE_MINUS_SRC_COLOR,GL_ONE,GL_ONE);
+			glBlendColor4ub(96,0,255,255);
 			glRasterPos2i(0,0);
 			dp = emu.display.ptr + 0x800;
 			for(int i = 0; i < 64; i++)
 			{
 				glBitmap(192,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
 			}
-			dp = emu.display.ptr;
-			glBlendColor4ub(0,0,0,64);
-			glRasterPos2i(0,0);
-			for(int i = 0; i < 64; i++)
-			{
-				glBitmap(192,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
-			}
+			glBlendEquation(GL_FUNC_ADD);
+			glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE);
 		}
 		version(CWX)
 		{

@@ -1,6 +1,7 @@
 import std.file;
 import std.path;
 import std.stdio;
+import std.string;
 import bindbc.glfw;
 import dgui;
 import bindbc.opengl.util;
@@ -84,34 +85,141 @@ bool GetBit(int bitn)
 	return (emu.display[bitn>>3]&(1<<(7^(bitn&0x7)))) != 0;
 }
 
+void checkShaderError(GLuint shader, string type)
+{
+	GLint success;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+	if(!success)
+	{
+		GLint logLen;
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLen);
+		char[] log = new char[logLen];
+		glGetShaderInfoLog(shader, logLen, null, log.ptr);
+		writeln(type, " Shader Error:\n", log);
+	}
+}
+
+void checkProgramError(GLuint program)
+{
+    GLint success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if(!success)
+	{
+        GLint logLen;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+        char[] log = new char[logLen];
+        glGetProgramInfoLog(program, logLen, null, log.ptr);
+		writeln("Program Linking Error:\n", log);
+    }
+}
+
+
+GLuint compileProgram(string vertexSource, string fragmentSource)
+{
+	GLuint vShader = glCreateShader(GL_VERTEX_SHADER);
+	auto vSourcePtr = vertexSource.toStringz;
+	glShaderSource(vShader, 1, &vSourcePtr, null);
+	glCompileShader(vShader);
+	checkShaderError(vShader, "Vertex");
+
+	GLuint fShader = glCreateShader(GL_FRAGMENT_SHADER);
+	auto fSourcePtr = fragmentSource.toStringz;
+	glShaderSource(fShader, 1, &fSourcePtr, null);
+	glCompileShader(fShader);
+	checkShaderError(fShader, "Fragment");
+
+	GLuint program = glCreateProgram();
+	glAttachShader(program, vShader);
+	glAttachShader(program, fShader);
+	glLinkProgram(program);
+	checkProgramError(program);
+
+	glDeleteShader(vShader);
+	glDeleteShader(fShader);
+
+	return program;
+}
 
 class Display : Panel
 {
+	GLuint planes;
+	GLuint program;
+	GLuint vbo, vao;
+	GLint modelLoc;
+	float[16] vertices = [0,0,1,0,1,1,0,1];
 	this(Panel parent)
 	{
 		super(parent);
+		
+		
+		
 		width = 194;
 		height = 66;
+		glGenTextures(1,&planes);
+		glBindTexture(GL_TEXTURE_2D, planes);
+		writeln(__LINE__,":",glGetError());
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);	
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+		writeln(__LINE__,":",glGetError());
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI, 32, 128, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, emu.display.ptr);
+		writeln(__LINE__,":",glGetError());
+		glBindTexture(GL_TEXTURE_2D, 0);
+		writeln(__LINE__,":",glGetError());
+		program = compileProgram(import("Vert.glsl"),import("Frag.glsl"));
+		GLint planesLoc = glGetUniformLocation(program, "planes");
+		glUseProgram(program);
+		glUniform1i(planesLoc, 0); // Texture unit 0 is for base images.
+		glUseProgram(0);
+		modelLoc = glGetUniformLocation(program, "model_matrix");
+		glGenBuffers(1, &vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, vertices.length, vertices.ptr, GL_STATIC_DRAW);
+		
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, null);
+		glBindVertexArray(0);
+
 	}
 	
 	override void DrawBackground()
 	{
 		glBlendColor4ub(255,255,255,255);
-		DGUI_FillRect(0,0,194,66);
+		//DGUI_FillRect(0,0,194,66);
 		glTranslatef(1,2,0);
 		ubyte* dp = emu.display.ptr;
 		version(CWII)
 		{
-			dp = emu.display.ptr;
-			glBlendColor4ub(0,255,0,255);
+			glUseProgram(program);
+			
+			int s_width, s_height;
+		
+			glfwGetFramebufferSize(window, &s_width, &s_height);
+		
+		
+			glBindTexture(GL_TEXTURE_2D, planes);
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 32, 128, GL_RED_INTEGER, GL_UNSIGNED_BYTE, emu.display.ptr);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, planes);
+			glBindVertexArray(vao);
+			//glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			//writeln(glGetError());
+			DGUI_FillRect(0,0,192,64);
+			glUseProgram(0);
+			/*
+			glBlendColor4ub(254,78,3,255);
 			glRasterPos2i(0,0);
 			for(int i = 0; i < 64; i++)
 			{
 				glBitmap(192,1,0,0,0,-1.0,(cast(GLubyte*)dp+i*32));
 			}
 			glBlendEquationSeparate(GL_FUNC_SUBTRACT,GL_FUNC_ADD);
-			glBlendFuncSeparate(GL_DST_COLOR,GL_ONE_MINUS_SRC_COLOR,GL_ONE,GL_ONE);
-			glBlendColor4ub(96,0,255,255);
+			glBlendFuncSeparate(GL_ONE,GL_ONE,GL_ONE,GL_ONE);
+			glBlendColor4ub(255-103,255-0,255-51,255);
 			glRasterPos2i(0,0);
 			dp = emu.display.ptr + 0x800;
 			for(int i = 0; i < 64; i++)
@@ -120,6 +228,7 @@ class Display : Panel
 			}
 			glBlendEquation(GL_FUNC_ADD);
 			glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE);
+			*/
 		}
 		version(CWX)
 		{
@@ -642,8 +751,8 @@ void main(string[] args)
 	glfwSetErrorCallback(&errorCallback);
 	glfwInit();
 	
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 	
 	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, 1);
 	glfwWindowHint(GLFW_DECORATED, 0);

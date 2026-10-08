@@ -153,8 +153,8 @@ class Display : Panel
 		
 		
 		
-		width = 194;
-		height = 66;
+		width = 194+192;
+		height = 66+64;
 		glGenTextures(1,&planes);
 		glBindTexture(GL_TEXTURE_2D, planes);
 		writeln(__LINE__,":",glGetError());
@@ -208,7 +208,7 @@ class Display : Panel
 			glBindVertexArray(vao);
 			//glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 			//writeln(glGetError());
-			DGUI_FillRect(0,0,192,64);
+			DGUI_FillRect(0,0,192*2,64*2);
 			glUseProgram(0);
 			/*
 			glBlendColor4ub(254,78,3,255);
@@ -409,7 +409,7 @@ class MainApp : Panel
 			hed.y = 8;
 			ON = new Button(content,"ON");
 			ON.callback = &PressON;
-			ON.x = 256;
+			ON.x = 256+192;
 			ON.y = 4;
 			/*
 			fuck = new Button(content,"Fuck");
@@ -503,7 +503,7 @@ class MainApp : Panel
 					{
 						Button newb = new Button(content);
 						newb.x = j * 44 + 5;
-						newb.y = i * 18 + 72;
+						newb.y = i * 18 + 72+64;
 						newb.callback3 = &PressButton;
 						newb.callback2 = &ReleaseButton;
 						newb.text = labels[j*8+i];
@@ -525,16 +525,16 @@ class MainApp : Panel
 				}
 			}
 			SaveButton = new Button(content,"Save");
-			SaveButton.x = 300;
-			SaveButton.y = 4;
+			SaveButton.x = 4;
+			SaveButton.y = 300;
 			SaveButton.callback = &Save;
 			LoadButton = new Button(content,"Load");
-			LoadButton.x = 460;
-			LoadButton.y = 4;
+			LoadButton.x = 164;
+			LoadButton.y = 300;
 			LoadButton.callback = &Load;
 			SaveName = new Textbox(content);
-			SaveName.x = 332;
-			SaveName.y = 4;
+			SaveName.x = 40;
+			SaveName.y = 300;
 			SaveName.width = 128;
 			SaveName.text = "default";
 		}
